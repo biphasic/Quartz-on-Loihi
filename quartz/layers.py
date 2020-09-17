@@ -22,7 +22,7 @@ class InputLayer(Layer):
 
 
 class FullyConnected(Layer):
-    def __init__(self, prev_layer, weights, biases, name="fc:", split_output=True, monitor=False, **kwargs):
+    def __init__(self, prev_layer, weights, biases, name="fc", split_output=True, monitor=False, **kwargs):
         super(FullyConnected, self).__init__(name=name+str(prev_layer.layer_n + 1)+":", **kwargs)
         self.layer_n = prev_layer.layer_n + 1
         self.prev_layer = prev_layer
@@ -125,8 +125,8 @@ class MaxPool2D(Layer):
 
 
 class MonitorLayer(Layer):
-    def __init__(self, prev_layer, name="monitor:", **kwargs):
-        super(MonitorLayer, self).__init__(name=name+"l-"+str(prev_layer.layer_n + 1), **kwargs)
+    def __init__(self, prev_layer, name="monitor", **kwargs):
+        super(MonitorLayer, self).__init__(name=name+str(prev_layer.layer_n + 1)+":", **kwargs)
         self.layer_n = prev_layer.layer_n + 1
         self.prev_layer = prev_layer
 

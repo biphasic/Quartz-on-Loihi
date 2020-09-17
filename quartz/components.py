@@ -17,7 +17,7 @@ class Synapse:
 
 class Neuron:
     input, recall, hidden, ready, output = range(5)
-    pulse, acc, multi = range(3)
+    pulse, acc = range(2)
 
     def __init__(self, type=hidden, promoted=False, loihi_type=None, name=None, monitor=False):
         self.type = type

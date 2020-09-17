@@ -15,10 +15,13 @@ class Network:
     def __init__(self, layers, name=''):
         self.name = name
         self.data = {}
-        for layer in layers: self.add(layer)
+        self.layers = layers
         
+    def __call__(self, input_spike_list=None, t_max=None, vth_mant=2**16, num_chips=1):
+        self.build_model(input_spike_list, t_max)
+        self.run_on_loihi()
         
-    def build_loihi_layered_model(self, input_spike_list=None, recall_spike_list=None, t_max=None, vth_mant=2**16, num_chips=1):
+    def build_model(input_spike_list, t_max):
         net = nx.NxNet()
         assert np.log2(t_max).is_integer()
         weight_exponent = np.log2(vth_mant/(t_max*self.model.weight_acc))
@@ -34,7 +37,9 @@ class Network:
         ipdb.set_trace()
     
     
-    
+    def __repr__(self):
+        return '\n'.join([layer.name for layer in self.layers])
+            
     
     #@profile
     def run_on_loihi(self, run_time, input_spike_list=None, recall_spike_list=None, t_max=None, vth_mant=2**16, full_probes=True, num_chips=1,

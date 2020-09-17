@@ -31,3 +31,5 @@ class Layer:
         return self.weight_e, self.weight_acc, self.t_syn, self.t_min, self.t_neu
     
     
+    def __repr__(self):
+        return self.name
