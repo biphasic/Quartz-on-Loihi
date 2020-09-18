@@ -7,7 +7,6 @@ class Block:
     def __init__(self, name='', weight_e=120, weight_acc=2**6, t_syn=0, t_min=1, t_neu=1):
         self.name = name
         self.neurons = []
-        self.blocks = []
         self.weight_e = weight_e
         self.weight_acc = weight_acc
         self.weight_exp = weight_acc
@@ -24,22 +23,23 @@ class Block:
         elif len(res) == 0:
             raise Exception("No neuron with name {} found. Available names are: {}".format(name, self.neurons))
         return res[0]
+    
+    def neurons(self):
+        return self.neurons
 
-    # notice the difference: promoted neurons in all_neurons, otherwise self.neurons
-    def _get_neurons_of_type(self, neuron_type, promoted):
-        if promoted: return [neuron for neuron in self.all_neurons() if neuron.promoted and neuron.type == neuron_type]
+    def _get_neurons_of_type(self, neuron_type):
         return [neuron for neuron in self.neurons if neuron.type == neuron_type]
     
-    def input_neurons(self, promoted=False): return self._get_neurons_of_type(Neuron.input, promoted)
+    def input_neurons(self): return self._get_neurons_of_type(Neuron.input)
 
-    def ready_neurons(self, promoted=False): return self._get_neurons_of_type(Neuron.ready, promoted)
+    def ready_neurons(self): return self._get_neurons_of_type(Neuron.ready)
 
-    def recall_neurons(self, promoted=False): return self._get_neurons_of_type(Neuron.recall, promoted)
+    def recall_neurons(self): return self._get_neurons_of_type(Neuron.recall)
 
-    def output_neurons(self, promoted=False): return self._get_neurons_of_type(Neuron.output, promoted)
+    def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
 
     def monitored_neurons(self):
-        return tuple(neuron for neuron in self.all_neurons() if neuron.monitor)
+        return [neuron for neuron in self.neurons if neuron.monitor]
 
     def first(self):
         return self.output_neurons()[0]
@@ -47,47 +47,19 @@ class Block:
     def second(self):
         return self.output_neurons()[1]
 
-    def neurons_from_block(self, network, neurons):
-        if network.blocks == []: # base case
-            return neurons + network.neurons
-        branch_neurons = [] + network.neurons
-        for single_block in network.blocks:
-            branch_neurons += self.neurons_from_block(single_block, neurons)
-        return neurons + branch_neurons
-
-    def check_all_blocks_for_delays(self, network, t_max, numDendriticAccumulators):
-        if isinstance(network, stick.ConstantDelay):
-            network.reset()
-            network.layout_delays(t_max, numDendriticAccumulators)
-        for single_block in network.blocks:
-            self.check_all_blocks_for_delays(single_block, t_max, numDendriticAccumulators)
-
-    def connect_signed_output_to_input(self, block, weight, delay, target_input=0):
-        self.output_neurons()[0].connect_to(block.input_neurons()[target_input*2], weight, delay)
-        self.output_neurons()[1].connect_to(block.input_neurons()[target_input*2+1], weight, delay)
-
-    def all_neurons(self):
-        return self.neurons_from_block(self, [])
-
     def print_connections(self, maximum=10e7):
-        for i, neuron in enumerate(self.all_neurons()):
+        for i, neuron in enumerate(self.neurons):
             if neuron.synapses['pre'] != []: 
                 [print(connection) for connection in neuron.synapses['pre']]
             elif neuron.type != Neuron.output and neuron.type != Neuron.ready:
                 print("Warning: neuron {} seems not to be connected to any other neuron.".format(neuron.name))
             if i > maximum: break
 
-    def _count_connections(self, neurons):
-        n_connections = 0
-        for neuron in neurons:
-            n_connections += len(neuron.synapses['post'])
-        return n_connections
+    def n_compartments(self):
+        return sum(len(self.neurons))
 
     def n_connections(self):
-        return self._count_connections(self.neurons)
-
-    def n_all_connections(self):
-        return self._count_connections(self.all_neurons())
+        return sum([len(neuron.synapses['post']) for neuron in self.neurons])
 
     def get_params_at_once(self):
         return self.weight_e, self.weight_acc, self.t_syn, self.t_min, self.t_neu

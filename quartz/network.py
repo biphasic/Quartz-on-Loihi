@@ -26,6 +26,18 @@ class Network:
         assert np.log2(t_max).is_integer()
         weight_exponent = np.log2(vth_mant/(t_max*self.model.weight_acc))
         # add intermediate neurons for delay encoder depending on t_max just before execution on Loihi
+        
+        # check layers for delays longer than 2**3
+        
+        # assign core layout based on no of compartments and no of unique connections
+        
+        # create loihi compartments
+        
+        # connect loihi compartments
+        
+        # add inputs
+        
+        
         self.model.check_all_blocks_for_delays(self.model, t_max, 2**3)
 
         for neuron in self.model.all_neurons():
@@ -35,11 +47,16 @@ class Network:
                 neuron.loihi_type = Neuron.pulse
         
         ipdb.set_trace()
+            
+    def n_compartments(self):
+        pass
     
+    def n_connections(self):
+        pass
     
     def __repr__(self):
         return '\n'.join([layer.name for layer in self.layers])
-            
+    
     
     #@profile
     def run_on_loihi(self, run_time, input_spike_list=None, recall_spike_list=None, t_max=None, vth_mant=2**16, full_probes=True, num_chips=1,
