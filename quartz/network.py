@@ -17,43 +17,34 @@ class Network:
         self.data = {}
         self.layers = layers
         
-    def __call__(self, input_spike_list=None, t_max=None, vth_mant=2**16, num_chips=1):
+    def __call__(self, input_spike_list, t_max, vth_mant=2**16, num_chips=1):
         self.build_model(input_spike_list, t_max)
         self.run_on_loihi()
-        
+
     def build_model(input_spike_list, t_max):
         net = nx.NxNet()
         assert np.log2(t_max).is_integer()
-        weight_exponent = np.log2(vth_mant/(t_max*self.model.weight_acc))
         # add intermediate neurons for delay encoder depending on t_max just before execution on Loihi
-        
-        # check layers for delays longer than 2**3
-        
+        self.check_block_delays(t_max, 2**3)
         # assign core layout based on no of compartments and no of unique connections
         
         # create loihi compartments
         
         # connect loihi compartments
+        weight_exponent = np.log2(vth_mant/(t_max*self.model.weight_acc))
         
         # add inputs
-        
-        
-        self.model.check_all_blocks_for_delays(self.model, t_max, 2**3)
-
-        for neuron in self.model.all_neurons():
-            if neuron.has_incoming_synapses() and all(synapse.type == Synapse.ge for synapse in neuron.incoming_synapses()):
-                neuron.loihi_type = Neuron.acc
-            else:
-                neuron.loihi_type = Neuron.pulse
-        
-        ipdb.set_trace()
             
     def n_compartments(self):
-        pass
+        return sum([layer.n_compartments() for layer in self.layers])
     
     def n_connections(self):
-        pass
+        return sum([layer.n_connections() for layer in self.layers])
     
+    def check_block_delays(self, t_max, numDendriticAccumulators):
+        for layer in self.layers:
+            layer.check_block_delays(t_max, numDendriticAccumulators)
+        
     def __repr__(self):
         return '\n'.join([layer.name for layer in self.layers])
     

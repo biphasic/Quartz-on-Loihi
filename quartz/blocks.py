@@ -4,25 +4,10 @@ import ipdb
 
 
 class Block:
-    def __init__(self, name='', weight_e=120, weight_acc=2**6, t_syn=0, t_min=1, t_neu=1):
+    def __init__(self, name='', parent_layer=None):
         self.name = name
         self.neurons = []
-        self.weight_e = weight_e
-        self.weight_acc = weight_acc
-        self.weight_exp = weight_acc
-        self.weight_gate = weight_e
-        self.t_syn = t_syn
-        self.t_min = t_min
-        self.t_neu = t_neu
-
-    def neuron(self, name):
-        res = tuple(neuron for neuron in self.neurons if name in neuron.name)
-        if len(res) > 1:
-            [print(neuron.name) for neuron in res]
-            raise Exception("Provided name was ambiguous, results returned: ")
-        elif len(res) == 0:
-            raise Exception("No neuron with name {} found. Available names are: {}".format(name, self.neurons))
-        return res[0]
+        self.parent_layer = parent_layer
     
     def neurons(self):
         return self.neurons
@@ -56,13 +41,13 @@ class Block:
             if i > maximum: break
 
     def n_compartments(self):
-        return sum(len(self.neurons))
+        return len(self.neurons)
 
     def n_connections(self):
         return sum([len(neuron.synapses['post']) for neuron in self.neurons])
 
     def get_params_at_once(self):
-        return self.weight_e, self.weight_acc, self.t_syn, self.t_min, self.t_neu
+        return self.parent_layer.get_params_at_once()
 
 
 class ConstantDelay(Block):
@@ -90,27 +75,28 @@ class ConstantDelay(Block):
     def layout_delays(self, t_max, numDendriticAccumulators):
         delay = round(self.value * t_max)
         numDendriticAccumulators = numDendriticAccumulators-2
+        weight_e, weight_acc, t_syn, t_min, t_neu = self.get_params_at_once()
         recall, output = self.neurons
         self.neurons = [] + [recall]
         i = 0
         while(delay>numDendriticAccumulators):
             intermediate = Neuron(name=self.name+"intermediate"+str(i))
-            self.neurons[-1].connect_to(intermediate, self.weight_e, self.t_syn + numDendriticAccumulators)
+            self.neurons[-1].connect_to(intermediate, weight_e, self.t_syn + numDendriticAccumulators)
             self.neurons += [intermediate]
             delay -= numDendriticAccumulators
             i += 1
-        self.neurons[-1].connect_to(output, self.weight_e, delay+self.t_min)
+        self.neurons[-1].connect_to(output, weight_e, delay+self.t_min)
 
         delay = i*self.t_neu
         self.neurons.append(self.neurons.pop(0)) # move recall to the end
         i = 0
         while(delay>numDendriticAccumulators):
             intermediate = Neuron(name=self.name+"intermediate-output"+str(i))
-            self.neurons[-1].connect_to(intermediate, self.weight_e, self.t_syn + numDendriticAccumulators)
+            self.neurons[-1].connect_to(intermediate, weight_e, self.t_syn + numDendriticAccumulators)
             self.neurons += [intermediate]
             delay -= (numDendriticAccumulators+1)
             i += 1
-        self.neurons[-1].connect_to(output, self.weight_e, delay)
+        self.neurons[-1].connect_to(output, weight_e, delay)
         self.neurons += [output]
 #         if self.monitor:
 #             print("New connections for " + self.name)

@@ -22,6 +22,8 @@ class Layer:
     def _get_neurons_of_type(self, neuron_type):
         return [neuron for neuron in self.neurons if neuron.type == neuron_type]
 
+    def input_neurons(self): return self._get_neurons_of_type(Neuron.input)
+
     def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
 
     def get_params_at_once(self):
@@ -30,13 +32,13 @@ class Layer:
     def neurons(self):
         return [block.neurons for block in self.blocks]
 
-    def n_all_compartments(self):
+    def n_compartments(self):
         return sum([block.n_compartments() for block in self.blocks])
     
-    def n_all_connections(self):
+    def n_connections(self):
         return sum([block.n_connections() for block in self.blocks])
 
-    def check_all_blocks_for_delays(self, block, t_max, numDendriticAccumulators):
+    def check_block_delays(self, block, t_max, numDendriticAccumulators):
         for block in self.blocks:
             if isinstance(block, quartz.blocks.ConstantDelay):
                 block.reset()
@@ -60,7 +62,7 @@ class InputLayer(Layer):
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), promoted=True, monitor=monitor, **kwargs)
+                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), promoted=True, monitor=monitor, parent_layer=self)
                     self.blocks.append(splitter)
                     self.neurons += splitter.input_neurons()
                     self.neurons += splitter.output_neurons()
@@ -80,8 +82,8 @@ class FullyConnected(Layer):
         assert len(input_neurons) <= self.weight_e
 
         for i in range(self.output_dims):
-            bias = quartz.blocks.ConstantDelay(value=biases[i], monitor=False, name=name+"l{0}-b{1}-".format(self.layer_n, i), **kwargs)
-            splitter = quartz.blocks.Splitter(name=name+"l{0}-bias{1}-split-".format(self.layer_n, i), promoted=False, monitor=False, **kwargs)
+            bias = quartz.blocks.ConstantDelay(value=biases[i], monitor=False, name=name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
+            splitter = quartz.blocks.Splitter(name=name+"l{0}-bias{1}-split-".format(self.layer_n, i), promoted=False, monitor=False, parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e, self.t_syn)
             firsts[i].connect_to(bias.recall_neurons()[0], self.weight_e, self.t_syn)
             bias_sign = 1 if biases[i] >= 0 else -1
@@ -89,7 +91,7 @@ class FullyConnected(Layer):
             weight_biased.append(bias_sign)
             relco = quartz.blocks.ReLCo(list(zip(firsts+[splitter.first()], seconds+[splitter.second()], weight_biased)),
                                      split_input=True, split_output=split_output, monitor=monitor,
-                                     name=name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), **kwargs)
+                                     name=name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), parent_layer=self)
             self.blocks += [relco, bias, splitter]
             self.neurons += relco.output_neurons()
 
@@ -114,8 +116,8 @@ class Conv2D(Layer):
             patches = [image.extract_patches_2d(indices[input_channel,:,:,:], (kernel_size)) for input_channel in range(input_channels)]
             patches = np.stack(patches)
             assert np.product(side_lengths) == patches.shape[1]
-            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], monitor=False, name=name+"l{}-b{}-".format(self.layer_n, output_channel), **kwargs)
-            splitter = quartz.blocks.Splitter(name=name+"l{}-bias{}-split-".format(self.layer_n, output_channel), promoted=False, monitor=False, **kwargs)
+            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], monitor=False, name=name+"l{}-b{}-".format(self.layer_n, output_channel), parent_layer=self)
+            splitter = quartz.blocks.Splitter(name=name+"l{}-bias{}-split-".format(self.layer_n, output_channel), promoted=False, monitor=False, parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e, self.t_syn)
             input_neurons[0].connect_to(bias.recall_neurons()[0], self.weight_e, self.t_syn)
             self.blocks += [bias, splitter]
@@ -127,7 +129,7 @@ class Conv2D(Layer):
                 bias_sign = 1 if biases[output_channel] >= 0 else -1
                 combinations += [(splitter.first(), splitter.second(), bias_sign)]
                 relco = quartz.blocks.ReLCo(combinations, split_input=True, split_output=split_output, monitor=monitor,\
-                                  name="conv-l{0}-c{1:3.0f}-n{2:3.0f}-".format(self.layer_n, output_channel, i), **kwargs)
+                                  name="conv-l{0}-c{1:3.0f}-n{2:3.0f}-".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [relco]
                 self.neurons += relco.output_neurons()
 
@@ -164,7 +166,7 @@ class MaxPool2D(Layer):
                 
                 maxpool = quartz.blocks.MaxPooling(combination, split_input=True, split_output=split_output, monitor=monitor,
                                                   extra_delay_first=extra_delay_first, extra_delay_sec=extra_delay_sec,
-                                                  name="pool-l{0}-c{1:3.0f}-n{2:3.0f}-".format(self.layer_n, output_channel, i), **kwargs)
+                                                  name="pool-l{0}-c{1:3.0f}-n{2:3.0f}-".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [maxpool]
                 self.neurons += maxpool.output_neurons()
 
