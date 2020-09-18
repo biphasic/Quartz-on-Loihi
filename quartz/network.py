@@ -16,10 +16,12 @@ class Network:
         self.name = name
         self.data = {}
         self.layers = layers
+        for i in range(1, len(layers)):
+            layers[i].connect_from(layers[i-1])
         
     def __call__(self, input_spike_list, t_max, vth_mant=2**16, num_chips=1):
-        self.build_model(input_spike_list, t_max)
-        self.run_on_loihi()
+        board, probes = self.build_model(input_spike_list, t_max)
+        self.run_on_loihi(board, probes)
 
     def build_model(input_spike_list, t_max):
         net = nx.NxNet()
