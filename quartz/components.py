@@ -1,7 +1,5 @@
 class Synapse:
-    v, ge, gf, gate = range(4)
-
-    def __init__(self, pre, post, weight, delay=0, type=v):
+    def __init__(self, pre, post, weight, delay=0):
         self.type = type
         self.name = "{0} --({1};{2})-->\t{3}".format(
             pre.name, round(weight,2), delay, post.name
@@ -19,7 +17,7 @@ class Neuron:
     input, recall, hidden, ready, output = range(5)
     pulse, acc = range(2)
 
-    def __init__(self, type=hidden, promoted=False, loihi_type=None, name=None, monitor=False):
+    def __init__(self, type=hidden, promoted=False, loihi_type=0, name=None, monitor=False):
         self.type = type
         self.loihi_type = loihi_type
         self.promoted = promoted
@@ -27,15 +25,15 @@ class Neuron:
         self.monitor = monitor
         self.synapses = {"pre": [], "post": []}
 
-    def connect_to(self, target_neuron, weight, delay=0, type=Synapse.v):
+    def connect_to(self, target_neuron, weight, delay=0):
         self.synapses["pre"].append(
-            Synapse(pre=self, post=target_neuron, weight=weight, delay=delay, type=type)
+            Synapse(pre=self, post=target_neuron, weight=weight, delay=delay)
         )
-        target_neuron.connect_from(self, weight, delay, type)
+        target_neuron.connect_from(self, weight, delay)
 
-    def connect_from(self, source_neuron, weight, delay, type):
+    def connect_from(self, source_neuron, weight, delay):
         self.synapses["post"].append(
-            Synapse(pre=source_neuron, post=self, weight=weight, delay=delay, type=type)
+            Synapse(pre=source_neuron, post=self, weight=weight, delay=delay)
         )
 
     def remove_connections_to(self, target_neuron):
