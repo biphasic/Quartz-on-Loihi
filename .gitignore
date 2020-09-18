@@ -1,4 +1,4 @@
-# *.pth
+*.pth
 mnist_data
 data
 runs

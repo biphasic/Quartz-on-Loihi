@@ -98,9 +98,6 @@ class ConstantDelay(Block):
             i += 1
         self.neurons[-1].connect_to(output, weight_e, delay)
         self.neurons += [output]
-#         if self.monitor:
-#             print("New connections for " + self.name)
-#             self.print_connections()
 
 
 class Splitter(Block):

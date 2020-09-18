@@ -26,10 +26,10 @@ class Network:
     def build_model(input_spike_list, t_max):
         net = nx.NxNet()
         assert np.log2(t_max).is_integer()
-        # add intermediate neurons for delay encoder depending on t_max just before execution on Loihi
+        # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
         # assign core layout based on no of compartments and no of unique connections
-        
+        self.check_layout()
         # create loihi compartments
         
         # connect loihi compartments
@@ -40,13 +40,21 @@ class Network:
     def n_compartments(self):
         return sum([layer.n_compartments() for layer in self.layers])
     
+    def n_parameters(self):
+        return sum([layer.n_parameters() for layer in self.layers])
+    
     def n_connections(self):
         return sum([layer.n_connections() for layer in self.layers])
     
     def check_block_delays(self, t_max, numDendriticAccumulators):
         for layer in self.layers:
             layer.check_block_delays(t_max, numDendriticAccumulators)
-        
+
+    def check_layout(self):
+        n_compartments = [layer.n_compartments() for layer in self.layers]
+        n_connections = [layer.n_connections() for layer in self.layers]
+        n_parameters = [layer.n_parameters() for layer in self.layers]
+
     def __repr__(self):
         return '\n'.join([layer.name for layer in self.layers])
     
