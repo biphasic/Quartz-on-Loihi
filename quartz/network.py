@@ -19,13 +19,14 @@ class Network:
         for i in range(1, len(layers)):
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, input_spike_list, t_max, vth_mant=2**16, num_chips=1):
+    def __call__(self, input_spike_list, t_max, num_chips=1):
         board, probes = self.build_model(input_spike_list, t_max)
         self.run_on_loihi(board, probes)
 
-    def build_model(input_spike_list, t_max):
+    def build_model(self, input_spike_list, t_max):
         net = nx.NxNet()
         assert np.log2(t_max).is_integer()
+        vth_mant=2**16
         # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
         # assign core layout based on no of compartments and no of unique connections
@@ -54,9 +55,14 @@ class Network:
         n_compartments = [layer.n_compartments() for layer in self.layers]
         n_connections = [layer.n_connections() for layer in self.layers]
         n_parameters = [layer.n_parameters() for layer in self.layers]
+        
+        
+        ipdb.set_trace()
+        
+        
 
     def __repr__(self):
-        return '\n'.join([layer.name for layer in self.layers])
+        return '\n'.join(["{}    \t{}  \t{}  \t{}".format(layer.name, layer.n_compartments(), layer.n_parameters(), layer.n_connections()) for layer in self.layers])
     
     
     #@profile

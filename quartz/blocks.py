@@ -85,9 +85,9 @@ class ConstantDelay(Block):
             self.neurons += [intermediate]
             delay -= numDendriticAccumulators
             i += 1
-        self.neurons[-1].connect_to(output, weight_e, delay+self.t_min)
+        self.neurons[-1].connect_to(output, weight_e, delay+t_min)
 
-        delay = i*self.t_neu
+        delay = i*t_neu
         self.neurons.append(self.neurons.pop(0)) # move recall to the end
         i = 0
         while(delay>numDendriticAccumulators):

@@ -35,7 +35,7 @@ class Layer:
         return sum([block.n_compartments() for block in self.blocks])
 
     def n_parameters(self):
-        if isinstance(self, quartz.layers.InputLayer) or isinstance(self, quartz.layers.MonitorLayer): return 0
+        if isinstance(self, quartz.layers.InputLayer) or isinstance(self, quartz.layers.MonitorLayer) or isinstance(self, quartz.layers.MaxPool2D): return 0
         n_params = np.product(self.weights.shape)
         if self.biases is not None: n_params += self.biases.shape
         return n_params[0]
@@ -43,7 +43,7 @@ class Layer:
     def n_connections(self):
         return sum([block.n_connections() for block in self.blocks])
 
-    def check_block_delays(self, block, t_max, numDendriticAccumulators):
+    def check_block_delays(self, t_max, numDendriticAccumulators):
         for block in self.blocks:
             if isinstance(block, quartz.blocks.ConstantDelay):
                 block.reset()
@@ -79,7 +79,7 @@ class FullyConnected(Layer):
         self.weights = weights
         self.biases = biases
         self.name = name
-        self.output_dims = weights.shape[0]
+        self.output_dims = (weights.shape[0], 2) if split_output else (weights.shape[0], 1)
         self.split_output = split_output
         self.monitor = monitor
 
@@ -98,7 +98,7 @@ class FullyConnected(Layer):
         else:
             assert len(input_neurons) <= self.weight_e
 
-        for i in range(self.output_dims):
+        for i in range(self.output_dims[0]):
             if biases is not None:
                 bias = quartz.blocks.ConstantDelay(value=biases[i], monitor=False, name=self.name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
                 splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split-".format(self.layer_n, i), promoted=False, monitor=False, parent_layer=self)
@@ -124,7 +124,6 @@ class Conv2D(Layer):
         self.biases = biases
         self.stride = stride
         self.name = name
-        self.output_dims = weights.shape[0]
         self.split_output = split_output
         self.monitor = monitor
 
@@ -141,7 +140,7 @@ class Conv2D(Layer):
         output_channels = weights.shape[0]
         kernel_size = weights.shape[2:]
         side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0]) / self.stride + 1), int((prev_layer.output_dims[2] - kernel_size[1]) / self.stride + 1))
-        self.output_dims = (output_channels, *side_lengths, prev_layer.output_dims[-1])
+        self.output_dims = (output_channels, *side_lengths, 2) if self.split_output else (output_channels, *side_lengths, 1)
         
         indices = np.arange(len(input_neurons)).reshape(prev_layer.output_dims)
         for output_channel in range(output_channels): # no of output channels is most outer loop
