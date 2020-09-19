@@ -6,7 +6,7 @@ import ipdb
 
 
 class Layer:
-    def __init__(self, name, weight_e, weight_acc, t_min=1, t_neu=1):
+    def __init__(self, name, weight_e=2**7, weight_acc=2**7, t_min=1, t_neu=1):
         self.name = name
         self.weight_e = weight_e
         self.weight_acc = weight_acc
@@ -37,8 +37,8 @@ class Layer:
     def n_parameters(self):
         if isinstance(self, quartz.layers.InputLayer) or isinstance(self, quartz.layers.MonitorLayer): return 0
         n_params = np.product(self.weights.shape)
-        if self.biases != None: n_params += self.biases.shape
-        return n_params
+        if self.biases is not None: n_params += self.biases.shape
+        return n_params[0]
     
     def n_connections(self):
         return sum([block.n_connections() for block in self.blocks])
@@ -92,11 +92,14 @@ class FullyConnected(Layer):
         firsts = list(input_neurons[::2])
         seconds = list(input_neurons[1::2])
         assert weights.shape[1]*2 == len(input_neurons)
-        if biases != None: assert weights.shape[0] == biases.shape[0]
-        assert len(input_neurons) <= self.weight_e
+        if biases is not None: assert weights.shape[0] == biases.shape[0]
+        if prev_layer.output_dims[-1] == 2:
+            assert len(input_neurons)/2 <= self.weight_e
+        else:
+            assert len(input_neurons) <= self.weight_e
 
         for i in range(self.output_dims):
-            if biases != None:
+            if biases is not None:
                 bias = quartz.blocks.ConstantDelay(value=biases[i], monitor=False, name=self.name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
                 splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split-".format(self.layer_n, i), promoted=False, monitor=False, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
