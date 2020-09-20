@@ -62,7 +62,12 @@ class Network:
         
 
     def __repr__(self):
-        return '\n'.join(["{}    \t{}  \t{}  \t{}".format(layer.name, layer.n_compartments(), layer.n_parameters(), layer.n_connections()) for layer in self.layers])
+        print("name     \tn_comp \tn_param n_conn")
+        print("-------------------------------------")
+        print('\n'.join(["{}    \t{}  \t{}  \t{}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
+                                                          layer.n_connections()) for layer in self.layers]))
+        print("-------------------------------------")
+        return "total   \t{}  \t{}  \t{}".format(self.n_compartments(), self.n_parameters(), self.n_connections())
     
     
     #@profile

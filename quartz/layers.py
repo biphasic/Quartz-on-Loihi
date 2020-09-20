@@ -74,7 +74,7 @@ class InputLayer(Layer):
 
 
 class FullyConnected(Layer):
-    def __init__(self, weights, biases, name="fc", split_output=True, monitor=False, **kwargs):
+    def __init__(self, weights, biases, name="fc:", split_output=True, monitor=False, **kwargs):
         super(FullyConnected, self).__init__(name=name, **kwargs)
         self.weights = weights
         self.biases = biases
@@ -86,7 +86,7 @@ class FullyConnected(Layer):
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
-        self.name += str(self.layer_n)+":"
+        self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
         input_neurons = prev_layer.output_neurons()
         firsts = list(input_neurons[::2])
@@ -130,7 +130,7 @@ class Conv2D(Layer):
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
-        self.name += str(self.layer_n)+":"
+        self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
         assert weights.shape[1] == prev_layer.output_dims[0]
         assert weights.shape[0] == biases.shape[0]
@@ -177,7 +177,7 @@ class MaxPool2D(Layer):
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
-        self.name += str(self.layer_n)+":"
+        self.name = "l{}-{}".format(self.layer_n, self.name)
         kernel_size = self.kernel_size
         if self.stride==None: self.stride = kernel_size[0]
         input_neurons = prev_layer.output_neurons()
@@ -212,14 +212,14 @@ class MaxPool2D(Layer):
 
 
 class MonitorLayer(Layer):
-    def __init__(self, name="monitor", **kwargs):
+    def __init__(self, name="monitor:", **kwargs):
         super(MonitorLayer, self).__init__(name=name, **kwargs)
 
     def connect_from(self, prev_layer):
         self.layer_n = prev_layer.layer_n + 1
         self.prev_layer = prev_layer
-        self.name += str(self.layer_n)+":"
-        self.blocks += [quartz.blocks.Block(name='monitor', parent_layer=self)]
+        self.name = "l{}-{}".format(self.layer_n, self.name)
+        self.blocks += [quartz.blocks.Block(name=self.name, parent_layer=self)]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         for neuron in prev_layer.output_neurons():
             output_neuron = Neuron(name=neuron.name + "-monitor", monitor=True)
