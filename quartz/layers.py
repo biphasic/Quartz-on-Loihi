@@ -17,6 +17,7 @@ class Layer:
         self.prev_layer = None
         self.blocks = []
         self.neurons = []
+        self.compartment_groups = []
 
     def _get_neurons_of_type(self, neuron_type):
         return [neuron for neuron in self.neurons if neuron.type == neuron_type]
@@ -53,6 +54,14 @@ class Layer:
         for i, block in enumerate(self.blocks):
             block.print_connections()
             if i > maximum: break
+                
+    def _get_blocks_of_type(self, type):
+        return [block for block in self.blocks if isinstance(block, type)]
+    
+    def get_relco_blocks(self): return self._get_blocks_of_type(quartz.blocks.ReLCo)
+    def get_const_blocks(self): return self._get_blocks_of_type(quartz.blocks.ConstantDelay)
+    def get_pool_blocks(self): return self._get_blocks_of_type(quartz.blocks.MaxPool2D)
+    def get_split_blocks(self): return self._get_blocks_of_type(quartz.blocks.Splitter)
 
     def __repr__(self):
         return self.name

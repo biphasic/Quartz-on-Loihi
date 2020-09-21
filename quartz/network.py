@@ -26,15 +26,15 @@ class Network:
     def build_model(self, input_spike_list, t_max):
         net = nx.NxNet()
         assert np.log2(t_max).is_integer()
-        vth_mant=2**16
         # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
+        # assign weight exponents depending on t_max
+        self.check_weight_exponents(t_max, 2**16)
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
-        
+        self.create_compartments()
         # connect loihi compartments
-        weight_exponent = np.log2(vth_mant/(t_max*self.model.weight_acc))
         
         # add inputs
             
@@ -51,13 +51,59 @@ class Network:
         for layer in self.layers:
             layer.check_block_delays(t_max, numDendriticAccumulators)
 
+    def check_weight_exponents(self, t_max, vth_mant):
+        for layer in self.layers:
+            layer.weight_exponent = np.log2(vth_mant/(t_max*layer.weight_acc))
+        
     def check_layout(self):
-        n_compartments = [layer.n_compartments() for layer in self.layers]
-        n_connections = [layer.n_connections() for layer in self.layers]
-        n_parameters = [layer.n_parameters() for layer in self.layers]
+        self.core_ids = np.zeros((128))
+#         n_compartments = [layer.n_compartments() for layer in self.layers]
+#         n_connections = [layer.n_connections() for layer in self.layers]
+#         n_parameters = [layer.n_parameters() for layer in self.layers]
+        core_id = 0
+        compartments_on_core = np.zeros((128))
+        for i, layer in enumerate(self.layers):
+            self.core_ids[core_id] = i
+            for block in layer.blocks:
+                if compartments_on_core[core_id] + len(block.neurons) >= 1024:
+                    core_id += 1
+                    self.core_ids[core_id] = i
+                block.core_id = core_id
+                compartments_on_core[core_id] += len(block.neurons)
+            core_id += 1
+        print(self.core_ids)
+        print(compartments_on_core)
+        
+    def create_compartments(self):
+        net = nx.NxNet()
+        vth_mant=2**16
+        for i, layer in enumerate(self.layers):
+            for block in layer.blocks:
+                block_group = net.createCompartmentGroup(size=0)
+                layer.compartment_groups.append(block_group)
+                for neuron in block.neurons:
+                    if neuron.loihi_type == Neuron.acc:
+                        acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
+                        block_group.addCompartments(net.createCompartment(acc_proto))
+                    else:
+                        no_inputs = len(neuron.incoming_synapses())
+                        pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent
+                        if no_inputs > 0:
+                            assert no_inputs <= layer.weight_e
+                            ratio = (layer.weight_e // no_inputs) * no_inputs / layer.weight_e # hack for sync neurons
+                            if ratio != 1:
+                                pulse_mant = layer.weight_e * ratio * 2**layer.weight_exponent - 1
+                        pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
+                        block_group.addCompartments(net.createCompartment(pulse_proto))
+                relcos = layer.get_relco_blocks()
+            ipdb.set_trace()            
+            
+    def connect_compartments(self, t_max):
+        pass
         
         
-        ipdb.set_trace()
+    def run_on_loihi(self, board, probes):
+        pass
         
         
 
@@ -71,7 +117,7 @@ class Network:
     
     
     #@profile
-    def run_on_loihi(self, run_time, input_spike_list=None, recall_spike_list=None, t_max=None, vth_mant=2**16, full_probes=True, num_chips=1,
+    def run_on_loihi1(self, run_time, input_spike_list=None, recall_spike_list=None, t_max=None, vth_mant=2**16, full_probes=True, num_chips=1,
                      partition='loihi', probe_selection=[], probe_interval=1, profiling=False, plot=True, logging=False, save_plot=False):
         board, probes = self.build_loihi_model(input_spike_list, recall_spike_list, t_max, vth_mant, logging,
                                                full_probes, num_chips, probe_selection, probe_interval, profiling)
