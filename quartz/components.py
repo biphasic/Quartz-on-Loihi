@@ -1,6 +1,5 @@
 class Synapse:
     def __init__(self, pre, post, weight, delay=0):
-        self.type = type
         self.name = "{0} --({1};{2})-->\t{3}".format(
             pre.name, round(weight,2), delay, post.name
         )
@@ -14,10 +13,10 @@ class Synapse:
 
 
 class Neuron:
-    input, recall, hidden, ready, output = range(5)
+    input, hidden, output = range(3)
     pulse, acc = range(2)
 
-    def __init__(self, type=hidden, promoted=False, loihi_type=0, name=None, monitor=False):
+    def __init__(self, type=hidden, promoted=False, loihi_type=pulse, name=None, monitor=False):
         self.type = type
         self.loihi_type = loihi_type
         self.promoted = promoted

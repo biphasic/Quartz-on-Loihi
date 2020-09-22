@@ -1,4 +1,5 @@
 from quartz.components import Neuron, Synapse
+from quartz.blocks import Block
 import quartz
 from sklearn.feature_extraction import image
 import numpy as np
@@ -16,16 +17,15 @@ class Layer:
         self.layer_n = None
         self.prev_layer = None
         self.blocks = []
-        self.neurons = []
         self.compartment_groups = []
 
-    def _get_neurons_of_type(self, neuron_type):
-        return [neuron for neuron in self.neurons if neuron.type == neuron_type]
+    def _get_blocks_of_type(self, block_type):
+        return [block for block in self.blocks if block.type == block_type]
+    
+    def input_blocks(self): return self._get_blocks_of_type(Block.input)
 
-    def input_neurons(self): return self._get_neurons_of_type(Neuron.input)
-
-    def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
-
+    def output_blocks(self): return self._get_blocks_of_type(Block.output)
+    
     def get_params_at_once(self):
         return self.weight_e, self.weight_acc, self.t_min, self.t_neu
     
@@ -55,13 +55,13 @@ class Layer:
             block.print_connections()
             if i > maximum: break
                 
-    def _get_blocks_of_type(self, type):
-        return [block for block in self.blocks if isinstance(block, type)]
+#     def _get_blocks_of_class(self, type):
+#         return [block for block in self.blocks if isinstance(block, type)]
     
-    def get_relco_blocks(self): return self._get_blocks_of_type(quartz.blocks.ReLCo)
-    def get_const_blocks(self): return self._get_blocks_of_type(quartz.blocks.ConstantDelay)
-    def get_pool_blocks(self): return self._get_blocks_of_type(quartz.blocks.MaxPool2D)
-    def get_split_blocks(self): return self._get_blocks_of_type(quartz.blocks.Splitter)
+#     def get_relco_blocks(self): return self._get_blocks_of_class(quartz.blocks.ReLCo)
+#     def get_const_blocks(self): return self._get_blocks_of_class(quartz.blocks.ConstantDelay)
+#     def get_pool_blocks(self): return self._get_blocks_of_class(quartz.blocks.MaxPool2D)
+#     def get_split_blocks(self): return self._get_blocks_of_class(quartz.blocks.Splitter)
 
     def __repr__(self):
         return self.name
@@ -76,20 +76,18 @@ class InputLayer(Layer):
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), promoted=True, monitor=monitor, parent_layer=self)
+                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), 
+                                                      type=Block.output, monitor=monitor, parent_layer=self)
                     self.blocks.append(splitter)
-                    self.neurons += splitter.input_neurons()
-                    self.neurons += splitter.output_neurons()
 
 
-class FullyConnected(Layer):
-    def __init__(self, weights, biases, name="fc:", split_output=True, monitor=False, **kwargs):
-        super(FullyConnected, self).__init__(name=name, **kwargs)
+class Dense(Layer):
+    def __init__(self, weights, biases, name="dense:", monitor=False, **kwargs):
+        super(Dense, self).__init__(name=name, **kwargs)
         self.weights = weights
         self.biases = biases
         self.name = name
-        self.output_dims = (weights.shape[0], 2) if split_output else (weights.shape[0], 1)
-        self.split_output = split_output
+        self.output_dims = weights.shape[0]
         self.monitor = monitor
 
     def connect_from(self, prev_layer):
@@ -97,6 +95,24 @@ class FullyConnected(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
+
+        input_blocks = prev_layer.output_blocks()
+        n_inputs = len(input_blocks) if bias is None else len(input_blocks) + 1
+        for i in range(self.output_dims):
+            if biases is not None:
+                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
+                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split-".format(self.layer_n, i), parent_layer=self)
+                bias.connect_to(splitter, self.weight_e)
+                input_blocks[0].connect_to(bias, np.array([[self.weight_e, 0]]))
+                self.blocks += [bias, splitter]
+            
+            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), monitor=self.monitor, parent_layer=self)
+            for j, block in enumerate(input_blocks):
+                weight = weights[i,j]
+                block.connect_to(relco, weight=np.array([[weight,self.weight_e/n_inputs],[-weight, 0]]))
+            self.blocks += [relco]
+        ipdb.set_trace()
+        
         input_neurons = prev_layer.output_neurons()
         firsts = list(input_neurons[::2])
         seconds = list(input_neurons[1::2])
@@ -120,7 +136,7 @@ class FullyConnected(Layer):
                 self.blocks += [bias, splitter]
             else:
                 inputs = list(zip(firsts, seconds, list(weights[i,:])))
-            relco = quartz.blocks.ReLCo(inputs, split_input=True, split_output=self.split_output, monitor=self.monitor,
+            relco = quartz.blocks.ReLCo(monitor=self.monitor,
                                      name=self.name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), parent_layer=self)
             self.blocks += [relco]
             self.neurons += relco.output_neurons()
