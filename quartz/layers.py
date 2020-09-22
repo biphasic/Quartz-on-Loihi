@@ -38,8 +38,8 @@ class Layer:
     def n_parameters(self):
         if isinstance(self, quartz.layers.InputLayer) or isinstance(self, quartz.layers.MonitorLayer) or isinstance(self, quartz.layers.MaxPool2D): return 0
         n_params = np.product(self.weights.shape)
-        if self.biases is not None: n_params += self.biases.shape
-        return n_params[0]
+        if self.biases is not None: n_params += np.product(self.biases.shape)
+        return n_params
     
     def n_connections(self):
         return sum([block.n_connections() for block in self.blocks])

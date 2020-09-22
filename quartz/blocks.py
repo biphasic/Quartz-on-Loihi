@@ -49,6 +49,10 @@ class Block:
     def get_params_at_once(self):
         return self.parent_layer.get_params_at_once()
 
+    def internal_weight_matrix(self): ipdb.set_trace()
+    def internal_delay_matrix(self): pass
+    def internal_connection_matrix(self):
+        ipdb.set_trace()
 
 class ConstantDelay(Block):
     def __init__(self, value, name="constDelay:", promoted=False, monitor=False, **kwargs):
@@ -133,14 +137,14 @@ class ReLCo(Block):
             for (first_input, second_input, weight) in inputs:
                 delay = 5 if weight > 0 else 0
                 first_input.connect_to(calc, weight*weight_acc, t_min+delay)
-                second_input.connect_to(calc, -weight*weight_acc+delay)
-                second_input.connect_to(sync, weight_e/len(inputs)+delay)
+                second_input.connect_to(calc, -weight*weight_acc, delay)
+                second_input.connect_to(sync, weight_e/len(inputs), delay)
         else:
             for (input_, weight) in inputs:
                 delay = 5 if weight > 0 else 0
                 input_.first().connect_to(calc, weight*weight_acc, t_min+delay)
-                input_.second().connect_to(calc, -weight*weight_acc+delay)
-                input_.second().connect_to(sync, weight_e/len(inputs)+delay)
+                input_.second().connect_to(calc, -weight*weight_acc, delay)
+                input_.second().connect_to(sync, weight_e/len(inputs), delay)
 
         sync.connect_to(calc, weight_acc)
         sync.connect_to(second, weight_acc)
@@ -151,7 +155,7 @@ class ReLCo(Block):
         first.connect_to(first, -weight_e)
         if not split_output:
             first.connect_to(output, weight_e)
-            second.connect_to(output, weight_e+t_min+t_neu)
+            second.connect_to(output, weight_e, t_min+t_neu)
 
 
 class MaxPooling(Block):
@@ -166,8 +170,8 @@ class MaxPooling(Block):
             for i, (first_input, second_input) in enumerate(inputs):
                 acc1 = Neuron(name=name + "acc1_{}".format(i), monitor=monitor, loihi_type=Neuron.acc)
                 acc2 = Neuron(name=name + "acc2_{}".format(i), monitor=monitor, loihi_type=Neuron.acc)
-                first_input.connect_to(acc1, weight_acc+extra_delay_first)
-                second_input.connect_to(acc2, weight_acc+extra_delay_sec)
+                first_input.connect_to(acc1, weight_acc, extra_delay_first)
+                second_input.connect_to(acc2, weight_acc, extra_delay_sec)
                 acc1.connect_to(acc2, -weight_acc)
                 acc1.connect_to(sync, weight_e/len(inputs))
                 acc1.connect_to(acc1, -weight_acc)
@@ -179,8 +183,8 @@ class MaxPooling(Block):
             for i, input_ in enumerate(inputs):
                 acc1 = Neuron(name=name + "acc1_{}".format(i), monitor=monitor)
                 acc2 = Neuron(name=name + "acc2_{}".format(i), monitor=monitor)
-                input_.first().connect_to(acc1, weight_acc+extra_delay_first)
-                input_.second().connect_to(acc2, weight_acc+extra_delay_sec)
+                input_.first().connect_to(acc1, weight_acc, extra_delay_first)
+                input_.second().connect_to(acc2, weight_acc, extra_delay_sec)
                 acc1.connect_to(acc2, -weight_acc)
                 acc1.connect_to(sync, weight_e/len(inputs))
                 acc2.connect_to(output, weight_e/len(inputs))

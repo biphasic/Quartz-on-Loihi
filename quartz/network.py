@@ -25,17 +25,18 @@ class Network:
 
     def build_model(self, input_spike_list, t_max):
         net = nx.NxNet()
+        vth_mant=2**16
         assert np.log2(t_max).is_integer()
         # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
         # assign weight exponents depending on t_max
-        self.check_weight_exponents(t_max, 2**16)
+        self.check_weight_exponents(t_max, vth_mant)
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
-        self.create_compartments()
+        net = self.create_compartments(vth_mant)
         # connect loihi compartments
-        
+        self.connect_compartments(t_max, net)
         # add inputs
             
     def n_compartments(self):
@@ -74,37 +75,40 @@ class Network:
         print(self.core_ids)
         print(compartments_on_core)
         
-    def create_compartments(self):
+    def create_compartments(self, vth_mant):
         net = nx.NxNet()
-        vth_mant=2**16
         for i, layer in enumerate(self.layers):
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0)
                 layer.compartment_groups.append(block_group)
+                acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
                 for neuron in block.neurons:
                     if neuron.loihi_type == Neuron.acc:
-                        acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
                         block_group.addCompartments(net.createCompartment(acc_proto))
                     else:
-                        no_inputs = len(neuron.incoming_synapses())
                         pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent
+                        no_inputs = len(neuron.incoming_synapses())
                         if no_inputs > 0:
                             assert no_inputs <= layer.weight_e
-                            ratio = (layer.weight_e // no_inputs) * no_inputs / layer.weight_e # hack for sync neurons
+                            ratio = (layer.weight_e // no_inputs) * no_inputs / layer.weight_e
                             if ratio != 1:
                                 pulse_mant = layer.weight_e * ratio * 2**layer.weight_exponent - 1
                         pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
                         block_group.addCompartments(net.createCompartment(pulse_proto))
-                relcos = layer.get_relco_blocks()
-            ipdb.set_trace()            
-            
-    def connect_compartments(self, t_max):
-        pass
+                block_group.connect(block_group, weight=block.internal_weight_matrix(), delay=block.internal_delay_matrix(), connectionMask=block.internal_connection_matrix())
+        #ipdb.set_trace()
+        return net
+#                 relcos = layer.get_relco_blocks()
+
+    def connect_compartments(self, t_max, net):
+        for i in range(1,len(self.layers)):
+            layer = self.layers[i]
+            for blocks in layer:
+                ipdb.set_trace()
         
         
     def run_on_loihi(self, board, probes):
         pass
-        
         
 
     def __repr__(self):
