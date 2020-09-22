@@ -115,7 +115,7 @@ class Network:
         print("name     \tn_comp \tn_param n_conn")
         print("-------------------------------------")
         print('\n'.join(["{}    \t{}  \t{}  \t{}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
-                                                          layer.n_connections()) for layer in self.layers]))
+                                                         layer.n_connections()) for layer in self.layers]))
         print("-------------------------------------")
         return "total   \t{}  \t{}  \t{}".format(self.n_compartments(), self.n_parameters(), self.n_connections())
     
@@ -129,90 +129,6 @@ class Network:
         
     def build_loihi_model(self, input_spike_list=None, recall_spike_list=None, t_max=None, vth_mant=2**16, logging=False, full_probes=True, 
                           num_chips=1, probe_selection=[], probe_interval=1, profiling=False):
-        net = nx.NxNet()
-        assert np.log2(t_max).is_integer()
-
-        # regulate precision of accumulating neurons depending on t_max, by modifying weight exponent
-        weight_exponent = np.log2(vth_mant/(t_max*self.model.weight_acc))
-        print("weight exponent: {}".format(weight_exponent))
-        weight_exponent_multicomp = weight_exponent+1
-        #print("weight_exponent_multicomp: {}".format(weight_exponent_multicomp))
-
-        numDendriticAccumulators = 2**3 # maximum number to support automatic compilation
-        # add intermediate neurons for delay encoder depending on t_max just before execution on Loihi
-        self.model.check_all_blocks_for_delays(self.model, t_max, numDendriticAccumulators)
-
-        quartz_neurons = list(set(self.model.all_neurons())) # flattened network
-
-        print("Before delay check: {} neurons.".format(len(quartz_neurons)))
-        # build loihi model
-        for neuron in quartz_neurons:
-            synapse_list = neuron.outgoing_synapses().copy()
-            for synapse in synapse_list:
-                if synapse.delay > 6:
-                    delay = synapse.delay
-                    accumulators = numDendriticAccumulators-2
-                    origin = synapse.pre
-                    target = synapse.post
-                    origin.remove_connections_to(target)
-                    intermediates = [] + [origin]
-                    i = 0
-                    while(delay>accumulators):
-                        intermediate = Neuron(name=neuron.name+"-intermediate"+str(i), loihi_type=Neuron.pulse)
-                        intermediates[-1].connect_to(intermediate, self.model.weight_e, self.model.t_syn + accumulators)
-                        intermediates += [intermediate]
-                        delay -= (accumulators + 1)
-                        i += 1
-                    intermediates[-1].connect_to(target, synapse.weight, delay, type=synapse.type)
-                    intermediates.remove(origin)
-                    quartz_neurons += intermediates
-
-            if neuron.has_incoming_synapses() and all(synapse.type == Synapse.ge for synapse in neuron.incoming_synapses()):
-                neuron.loihi_type = Neuron.acc
-            elif neuron.has_incoming_synapses() and any(synapse.type == Synapse.gf for synapse in neuron.incoming_synapses()):
-                neuron.loihi_type = Neuron.multi
-            else:
-                neuron.loihi_type = Neuron.pulse
-        print("After delay check: {} neurons.".format(len(quartz_neurons)))
-    
-        # create loihi neurons. If a neuron has only incoming ge synapses, then the compartment current type will be constant. 
-        # The default however is an instantaneous current decay, matching a V synapse.
-        net_neurons = []
-        n_cores = num_chips * 128
-        n_loihi_compartments = np.zeros((n_cores))
-        n_synapses = np.zeros((n_cores))
-        for neuron in quartz_neurons:
-            loihi_core_index = int(np.random.rand() * n_cores)
-            tries = 0
-            while n_synapses[loihi_core_index] + len(neuron.incoming_synapses()) > 4096:
-                loihi_core_index = int(np.random.rand() * n_cores)
-                tries += 1
-                if tries > 3 * n_cores: raise Exception("Too many synapses everywhere on all cores. Try increasing the number of chips used.")
-            n_synapses[loihi_core_index] += len(neuron.incoming_synapses())
-            if neuron.loihi_type == Neuron.acc:
-                loihi_neuron = net.createCompartment(nx.CompartmentPrototype(logicalCoreId=loihi_core_index, vThMant=vth_mant, compartmentCurrentDecay=0))
-                # inhibitory connection to reset current to 0 after spike
-                loihi_neuron.connect(loihi_neuron, prototype=nx.ConnectionPrototype(weight=-self.model.weight_acc, weightExponent=weight_exponent, signMode=3))
-            elif neuron.loihi_type == Neuron.multi:
-                loihi_neuron = net.createNeuron(nx.NeuronPrototype(self.model.get_neuron_prototype_on_core(loihi_core_index, vth_mant, t_max, pulse_mant)))
-                n_loihi_compartments[loihi_core_index] += 5
-                # self-excitatory connection to keep gate open
-                loihi_neuron.dendrites[0].dendrites[1].connect(loihi_neuron.dendrites[0].dendrites[1], 
-                                                               prototype=nx.ConnectionPrototype(weight=self.model.weight_gate, 
-                                                                                                weightExponent=weight_exponent_multicomp))
-            else: # standard pulse neuron. most common
-                no_inputs = len(neuron.incoming_synapses())
-                pulse_mant = (self.model.weight_e - 1) * 2**weight_exponent
-                if no_inputs > 0:
-                    assert no_inputs <= self.model.weight_e
-                    ratio = (self.model.weight_e // no_inputs) * no_inputs / self.model.weight_e # hack for sync neurons
-                    # if no_inputs > 300: ipdb.set_trace()
-                    if ratio != 1:
-                        pulse_mant = self.model.weight_e * ratio * 2**weight_exponent - 1
-                loihi_neuron = net.createCompartment(nx.CompartmentPrototype(logicalCoreId=loihi_core_index, vThMant=pulse_mant, 
-                                                                             compartmentCurrentDecay=2**12-1))
-            n_loihi_compartments[loihi_core_index] += 1
-            net_neurons.append(loihi_neuron)
 
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         # connect neurons like in the higher level model. Weights and delays are directly transferable. 

@@ -54,14 +54,6 @@ class Layer:
         for i, block in enumerate(self.blocks):
             block.print_connections()
             if i > maximum: break
-                
-#     def _get_blocks_of_class(self, type):
-#         return [block for block in self.blocks if isinstance(block, type)]
-    
-#     def get_relco_blocks(self): return self._get_blocks_of_class(quartz.blocks.ReLCo)
-#     def get_const_blocks(self): return self._get_blocks_of_class(quartz.blocks.ConstantDelay)
-#     def get_pool_blocks(self): return self._get_blocks_of_class(quartz.blocks.MaxPool2D)
-#     def get_split_blocks(self): return self._get_blocks_of_class(quartz.blocks.Splitter)
 
     def __repr__(self):
         return self.name
@@ -95,51 +87,28 @@ class Dense(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
-
+        if biases is not None: assert weights.shape[0] == biases.shape[0]
+            
         input_blocks = prev_layer.output_blocks()
-        n_inputs = len(input_blocks) if bias is None else len(input_blocks) + 1
+        assert weights.shape[1] == len(input_blocks)
+        assert len(input_blocks) <= self.weight_e
+        n_inputs = len(input_blocks) if biases is None else len(input_blocks) + 1
         for i in range(self.output_dims):
+            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), monitor=self.monitor, parent_layer=self)
             if biases is not None:
                 bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
                 splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split-".format(self.layer_n, i), parent_layer=self)
                 bias.connect_to(splitter, self.weight_e)
                 input_blocks[0].connect_to(bias, np.array([[self.weight_e, 0]]))
+                bias_sign = 1 if biases[i] >= 0 else -1
+                splitter.connect_to(relco, np.array([[bias_sign,self.weight_e/n_inputs],[-bias_sign, 0]]))
                 self.blocks += [bias, splitter]
             
-            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
                 block.connect_to(relco, weight=np.array([[weight,self.weight_e/n_inputs],[-weight, 0]]))
             self.blocks += [relco]
-        ipdb.set_trace()
-        
-        input_neurons = prev_layer.output_neurons()
-        firsts = list(input_neurons[::2])
-        seconds = list(input_neurons[1::2])
-        assert weights.shape[1]*2 == len(input_neurons)
-        if biases is not None: assert weights.shape[0] == biases.shape[0]
-        if prev_layer.output_dims[-1] == 2:
-            assert len(input_neurons)/2 <= self.weight_e
-        else:
-            assert len(input_neurons) <= self.weight_e
-
-        for i in range(self.output_dims[0]):
-            if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], monitor=False, name=self.name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split-".format(self.layer_n, i), promoted=False, monitor=False, parent_layer=self)
-                bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-                firsts[i].connect_to(bias.recall_neurons()[0], self.weight_e)
-                bias_sign = 1 if biases[i] >= 0 else -1
-                weight_biased = list(weights[i,:])
-                weight_biased.append(bias_sign)
-                inputs = list(zip(firsts+[splitter.first()], seconds+[splitter.second()], weight_biased))
-                self.blocks += [bias, splitter]
-            else:
-                inputs = list(zip(firsts, seconds, list(weights[i,:])))
-            relco = quartz.blocks.ReLCo(monitor=self.monitor,
-                                     name=self.name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), parent_layer=self)
-            self.blocks += [relco]
-            self.neurons += relco.output_neurons()
+        #ipdb.set_trace()
 
 
 class Conv2D(Layer):
@@ -244,9 +213,10 @@ class MonitorLayer(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.prev_layer = prev_layer
         self.name = "l{}-{}".format(self.layer_n, self.name)
-        self.blocks += [quartz.blocks.Block(name=self.name, parent_layer=self)]
-        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        for neuron in prev_layer.output_neurons():
-            output_neuron = Neuron(name=neuron.name + "-monitor", monitor=True)
-            neuron.connect_to(output_neuron, weight_e)
-            self.blocks[0].neurons += [output_neuron]
+        
+        for block in prev_layer.output_blocks():
+            monitor = quartz.blocks.Block(name=self.name, type=Block.output, parent_layer=self)
+            output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=True)
+            monitor.neurons += [output_neuron]
+            self.blocks += [monitor]
+            block.connect_to(monitor, np.array([[self.weight_e, self.weight_e]])) # missing delays
