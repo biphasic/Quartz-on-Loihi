@@ -7,12 +7,13 @@ import ipdb
 
 
 class Layer:
-    def __init__(self, name, weight_e=2**7, weight_acc=2**7, t_min=1, t_neu=1):
+    def __init__(self, name, weight_e=2**7, weight_acc=2**7, t_min=1, t_neu=1, monitor=False):
         self.name = name
         self.weight_e = weight_e
         self.weight_acc = weight_acc
         self.t_min = t_min
         self.t_neu = t_neu
+        self.monitor = monitor
         self.output_dims = []
         self.layer_n = None
         self.prev_layer = None
@@ -61,26 +62,24 @@ class Layer:
 
 class InputLayer(Layer):
     def __init__(self, dims, name="input:", monitor=False, **kwargs):
-        super(InputLayer, self).__init__(name=name, **kwargs)
+        super(InputLayer, self).__init__(name=name, monitor=monitor, **kwargs)
         self.layer_n = 0
         self.output_dims = dims
 
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), 
+                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}".format(channel,height,width), 
                                                       type=Block.output, monitor=monitor, parent_layer=self)
                     self.blocks.append(splitter)
 
 
 class Dense(Layer):
     def __init__(self, weights, biases, name="dense:", monitor=False, **kwargs):
-        super(Dense, self).__init__(name=name, **kwargs)
+        super(Dense, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights
         self.biases = biases
-        self.name = name
         self.output_dims = weights.shape[0]
-        self.monitor = monitor
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
@@ -88,16 +87,16 @@ class Dense(Layer):
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
         if biases is not None: assert weights.shape[0] == biases.shape[0]
-            
+
         input_blocks = prev_layer.output_blocks()
         assert weights.shape[1] == len(input_blocks)
         assert len(input_blocks) <= self.weight_e
         n_inputs = len(input_blocks) if biases is None else len(input_blocks) + 1
         for i in range(self.output_dims):
-            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}-".format(self.layer_n, i), monitor=self.monitor, parent_layer=self)
+            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}".format(self.layer_n, i), monitor=self.monitor, parent_layer=self)
             if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}-".format(self.layer_n, i), parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split-".format(self.layer_n, i), parent_layer=self)
+                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}".format(self.layer_n, i), type=Block.hidden, monitor=False, parent_layer=self)
+                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split".format(self.layer_n, i), type=Block.hidden, monitor=False, parent_layer=self)
                 bias.connect_to(splitter, self.weight_e)
                 input_blocks[0].connect_to(bias, np.array([[self.weight_e, 0]]))
                 bias_sign = 1 if biases[i] >= 0 else -1
@@ -112,14 +111,11 @@ class Dense(Layer):
 
 
 class Conv2D(Layer):
-    def __init__(self, weights, biases, stride=1, split_output=True, name="conv2D:", monitor=False, **kwargs):
-        super(Conv2D, self).__init__(name=name, **kwargs)
+    def __init__(self, weights, biases, stride=1, name="conv2D:", monitor=False, **kwargs):
+        super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights
         self.biases = biases
         self.stride = stride
-        self.name = name
-        self.split_output = split_output
-        self.monitor = monitor
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
@@ -154,19 +150,17 @@ class Conv2D(Layer):
                 bias_sign = 1 if biases[output_channel] >= 0 else -1
                 combinations += [(splitter.first(), splitter.second(), bias_sign)]
                 relco = quartz.blocks.ReLCo(combinations, split_input=True, split_output=self.split_output, monitor=self.monitor,\
-                                  name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}-".format(self.layer_n, output_channel, i), parent_layer=self)
+                                  name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [relco]
                 self.neurons += relco.output_neurons()
 
 
 class MaxPool2D(Layer):
-    def __init__(self, kernel_size, stride=None, name="pool:", split_output=True, monitor=False, **kwargs):
-        super(MaxPool2D, self).__init__(name=name, **kwargs)
-        self.name = name
+    def __init__(self, kernel_size, stride=None, name="pool:", monitor=False, **kwargs):
+        super(MaxPool2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.kernel_size = kernel_size
         self.split_output = split_output
         self.stride = stride
-        self.monitor = monitor
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
@@ -200,14 +194,14 @@ class MaxPool2D(Layer):
                 
                 maxpool = quartz.blocks.MaxPooling(combination, split_input=True, split_output=self.split_output, monitor=self.monitor,
                                                   extra_delay_first=extra_delay_first, extra_delay_sec=extra_delay_sec,
-                                                  name="pool-l{0}-c{1:3.0f}-n{2:3.0f}-".format(self.layer_n, output_channel, i), parent_layer=self)
+                                                  name="pool-l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [maxpool]
                 self.neurons += maxpool.output_neurons()
 
 
 class MonitorLayer(Layer):
-    def __init__(self, name="monitor:", **kwargs):
-        super(MonitorLayer, self).__init__(name=name, **kwargs)
+    def __init__(self, name="monitor:", monitor=True, **kwargs):
+        super(MonitorLayer, self).__init__(name=name, monitor=monitor, **kwargs)
 
     def connect_from(self, prev_layer):
         self.layer_n = prev_layer.layer_n + 1
@@ -215,8 +209,8 @@ class MonitorLayer(Layer):
         self.name = "l{}-{}".format(self.layer_n, self.name)
         
         for block in prev_layer.output_blocks():
-            monitor = quartz.blocks.Block(name=self.name, type=Block.output, parent_layer=self)
-            output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=True)
+            monitor = quartz.blocks.Block(name=self.name, type=Block.output, monitor=self.monitor, parent_layer=self)
+            output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=self.monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
             block.connect_to(monitor, np.array([[self.weight_e, self.weight_e]])) # missing delays

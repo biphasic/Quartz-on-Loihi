@@ -6,15 +6,23 @@ import ipdb
 
 class Connection:
     def __init__(self, pre, post, weight, delay):
-        self.name = "{0} --({1};{2})-->\t{3}".format(
-            pre.name, weight, delay, post.name
+        self.name = "{0}\n{1};{2}\n\t{3}\n\n".format(
+            pre.name, weight.round(2), delay.round(2), post.name
         )
-        if delay is None: delay = np.zeros_like(weight)
         self.pre = pre
         self.post = post
         self.weight = weight
         self.delay = delay
 
+    def get_matrices(self):
+        weights = np.zeros((len(self.post.neurons),len(self.pre.neurons)))
+        weights[:self.weight.shape[0],:self.weight.shape[1]] = self.weight
+        delay = np.zeros_like(weights)
+        mask = np.zeros_like(weights)
+        delay[:self.weight.shape[0],:self.weight.shape[1]] = self.delay
+        mask[weights!=0] = 1
+        return weights, delay, mask
+        
     def __repr__(self):
         return self.name
     
@@ -22,9 +30,10 @@ class Connection:
 class Block:
     input, hidden, output = range(3)
     
-    def __init__(self, name, type, parent_layer):
+    def __init__(self, name, type, monitor, parent_layer):
         self.name = name
         self.type = type
+        self.monitor = monitor
         self.neurons = []
         self.parent_layer = parent_layer
         self.connections = {"pre": [], "post": []}
@@ -60,10 +69,14 @@ class Block:
         return self.parent_layer.get_params_at_once()
     
     def connect_to(self, target_block, weight, delay=None):
+        if delay is None: delay = np.zeros_like(weight)
         self.connections["pre"].append(
             Connection(pre=self, post=target_block, weight=weight, delay=delay)
         )
         target_block.connect_from(self, weight, delay)
+        for i in range(weight.shape[0]):
+            for j in range(weight.shape[1]):
+                if weight[i,j] != 0: self.neurons[j].connect_to(target_block.neurons[i], weight[i,j], delay[i,j])
 
     def connect_from(self, source_neuron, weight, delay):
         self.connections["post"].append(
@@ -79,18 +92,24 @@ class Block:
     def has_incoming_connections(self):
         return self.connections["post"] != []
 
-#     def internal_weight_matrix(self): ipdb.set_trace()
-#     def internal_delay_matrix(self): pass
-#     def internal_connection_matrix(self):
-#         ipdb.set_trace()
+    def internal_connection_matrices(self):
+        weights = np.zeros((len(self.neurons), len(self.neurons)))
+        delays = np.zeros_like(weights)
+        mask = np.zeros_like(weights)
+        for i, neuron in enumerate(self.neurons):
+            for synapse in neuron.outgoing_synapses():
+                if synapse.post in self.neurons: 
+                    j = self.neurons.index(synapse.post)
+                    weights[j, i] = synapse.weight
+                    delays[j, i] = synapse.delay
+        mask[weights!=0] = 1
+        return weights, delays, mask
 
 
 class ConstantDelay(Block):
     def __init__(self, value, name="bias:", type=Block.hidden, monitor=False, **kwargs):
         self.value = abs(value)
-        self.name = name
-        self.monitor = monitor
-        super(ConstantDelay, self).__init__(name=name, type=type, **kwargs)
+        super(ConstantDelay, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
         input_ = Neuron(type=Neuron.input, name=self.name+"input", monitor=self.monitor)
         output = Neuron(type=Neuron.output, name=self.name+"output", monitor=self.monitor)
         self.neurons = [input_, output]            
@@ -136,7 +155,7 @@ class ConstantDelay(Block):
 
 class Splitter(Block):
     def __init__(self, name="split:", type=Block.hidden, monitor=False, **kwargs):
-        super(Splitter, self).__init__(name=name, type=type, **kwargs)
+        super(Splitter, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
         input_ = Neuron(type=Neuron.input, name=name + "input", monitor=monitor)
         first = Neuron(type=Neuron.output, name=name + "1st", monitor=monitor)
         last = Neuron(type=Neuron.output, name=name + "2nd", monitor=monitor)
@@ -149,7 +168,7 @@ class Splitter(Block):
 
 class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, monitor=False, **kwargs):
-        super(ReLCo, self).__init__(name=name, type=type, **kwargs)
+        super(ReLCo, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
         calc = Neuron(name=name + "calc", monitor=monitor, loihi_type=Neuron.acc, type=Neuron.input)
         sync = Neuron(name=name + "sync", monitor=monitor, type=Neuron.input)
         first = Neuron(name=name + "first", monitor=monitor, type=Neuron.output)
@@ -168,7 +187,7 @@ class ReLCo(Block):
 
 class MaxPooling(Block):
     def __init__(self, extra_delay_first=0, extra_delay_sec=0, split_output=False, name="pool:", type=Block.output, monitor=False, **kwargs):
-        super(MaxPooling, self).__init__(name=name, **kwargs)
+        super(MaxPooling, self).__init__(name=name, monitor=monitor, **kwargs)
         sync = Neuron(name=name + "sync", monitor=monitor)
         output = Neuron(type=Neuron.output, name=name + "output", monitor=monitor)
         self.neurons = [sync, output]
