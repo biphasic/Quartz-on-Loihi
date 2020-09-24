@@ -60,7 +60,7 @@ class Layer:
 
 
 class InputLayer(Layer):
-    def __init__(self, dims, name="input:", monitor=False, **kwargs):
+    def __init__(self, dims, name="l0-input:", monitor=False, **kwargs):
         super(InputLayer, self).__init__(name=name, monitor=monitor, **kwargs)
         self.layer_n = 0
         self.output_dims = dims
@@ -68,7 +68,7 @@ class InputLayer(Layer):
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}".format(channel,height,width), 
+                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), 
                                                       type=Block.output, monitor=monitor, parent_layer=self)
                     self.blocks.append(splitter)
 
@@ -92,12 +92,19 @@ class Dense(Layer):
         assert len(input_blocks) <= self.weight_e
         n_inputs = len(input_blocks) if biases is None else len(input_blocks) + 1
         for i in range(self.output_dims):
-            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}".format(self.layer_n, i), 
+            relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}-".format(self.layer_n, i), 
                                         monitor=self.monitor, parent_layer=self)
+            for j, block in enumerate(input_blocks):
+                weight = weights[i,j]
+                delay = 5 if weight > 0 else 0
+                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay)
+                block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
+                block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
+            self.blocks += [relco]
             if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}".format(self.layer_n, i), 
+                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{1}-".format(self.layer_n, i), 
                                                    type=Block.hidden, monitor=False, parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split".format(self.layer_n, i), 
+                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{1}-".format(self.layer_n, i), 
                                                   type=Block.hidden, monitor=False, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
                 input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
@@ -106,14 +113,6 @@ class Dense(Layer):
                 splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
                 splitter.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs)
                 self.blocks += [bias, splitter]
-            
-            for j, block in enumerate(input_blocks):
-                weight = weights[i,j]
-                delay = 5 if weight > 0 else 0
-                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, self.t_min+delay)
-                block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
-                block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
-            self.blocks += [relco]
 
 
 class Conv2D(Layer):

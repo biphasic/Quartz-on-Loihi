@@ -21,7 +21,8 @@ class Probe:
         self.loihi_probe = probe
         
     def plot(self):
-        plotProbes(probes = self.loihi_probe)
+        fig = plotProbes(probes = self.loihi_probe)
+        fig.set_size_inches((18,5))
     
     def le_data(self):
         for s, probe_set in zip([self.SPIKE, self.VOLTAGE, self.CURRENT], self.loihi_probe):
