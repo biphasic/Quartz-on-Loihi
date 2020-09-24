@@ -93,10 +93,13 @@ class Dense(Layer):
         assert len(input_blocks) <= self.weight_e
         n_inputs = len(input_blocks) if biases is None else len(input_blocks) + 1
         for i in range(self.output_dims):
-            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}".format(self.layer_n, i), monitor=self.monitor, parent_layer=self)
+            relco = quartz.blocks.ReLCo(name=self.name+"l{0:1.0f}-n{1:3.0f}".format(self.layer_n, i), 
+                                        monitor=self.monitor, parent_layer=self)
             if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}".format(self.layer_n, i), type=Block.hidden, monitor=False, parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split".format(self.layer_n, i), type=Block.hidden, monitor=False, parent_layer=self)
+                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"l{0}-b{1}".format(self.layer_n, i), 
+                                                   type=Block.hidden, monitor=False, parent_layer=self)
+                splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split".format(self.layer_n, i), 
+                                                  type=Block.hidden, monitor=False, parent_layer=self)
                 bias.connect_to(splitter, self.weight_e)
                 input_blocks[0].connect_to(bias, np.array([[self.weight_e, 0]]))
                 bias_sign = 1 if biases[i] >= 0 else -1
@@ -130,7 +133,7 @@ class Conv2D(Layer):
         output_channels = weights.shape[0]
         kernel_size = weights.shape[2:]
         side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0]) / self.stride + 1), int((prev_layer.output_dims[2] - kernel_size[1]) / self.stride + 1))
-        self.output_dims = (output_channels, *side_lengths, 2) if self.split_output else (output_channels, *side_lengths, 1)
+        self.output_dims = (output_channels, *side_lengths)
         
         indices = np.arange(len(input_neurons)).reshape(prev_layer.output_dims)
         for output_channel in range(output_channels): # no of output channels is most outer loop
@@ -149,7 +152,7 @@ class Conv2D(Layer):
                     combinations += list(zip(neuron_patch[::2], neuron_patch[1::2], weights[output_channel,input_channel,:,:].flatten()))
                 bias_sign = 1 if biases[output_channel] >= 0 else -1
                 combinations += [(splitter.first(), splitter.second(), bias_sign)]
-                relco = quartz.blocks.ReLCo(combinations, split_input=True, split_output=self.split_output, monitor=self.monitor,\
+                relco = quartz.blocks.ReLCo(combinations, monitor=self.monitor,\
                                   name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [relco]
                 self.neurons += relco.output_neurons()
@@ -159,7 +162,6 @@ class MaxPool2D(Layer):
     def __init__(self, kernel_size, stride=None, name="pool:", monitor=False, **kwargs):
         super(MaxPool2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.kernel_size = kernel_size
-        self.split_output = split_output
         self.stride = stride
 
     def connect_from(self, prev_layer):
@@ -192,7 +194,7 @@ class MaxPool2D(Layer):
                 neuron_patch = np.array(input_neurons)[patches[i,:,:,:].flatten()]
                 combination = list(zip(neuron_patch[::2], neuron_patch[1::2],))
                 
-                maxpool = quartz.blocks.MaxPooling(combination, split_input=True, split_output=self.split_output, monitor=self.monitor,
+                maxpool = quartz.blocks.MaxPooling(combination, monitor=self.monitor,
                                                   extra_delay_first=extra_delay_first, extra_delay_sec=extra_delay_sec,
                                                   name="pool-l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [maxpool]
