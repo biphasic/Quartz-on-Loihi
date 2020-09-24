@@ -88,11 +88,10 @@ class Network:
         net = nx.NxNet()
         probes = []
         for i, layer in enumerate(self.layers):
-            layer.compartment_groups = []
-            connection_prototype = nx.ConnectionPrototype(weightExponent=layer.weight_exponent)
+            connection_prototype = nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=1, numTagBits=0, numWeightBits=8)
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0)
-                layer.compartment_groups.append(block_group)
+                block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
                 for neuron in block.neurons:
                     if neuron.loihi_type == Neuron.acc:
@@ -107,7 +106,7 @@ class Network:
                                 pulse_mant = layer.weight_e * ratio * 2**layer.weight_exponent - 1
                         pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
                         block_group.addCompartments(net.createCompartment(pulse_proto))
-                weight, delay, mask = block.internal_connection_matrices()
+                weight, delay, mask = block.get_connection_matrices_to(block)
                 block_group.connect(block_group, prototype=connection_prototype, weight=weight, delay=delay, connectionMask=mask)
                 if block.monitor: block.probe.set_loihi_probe(block_group.probe([nx.ProbeParameter.SPIKE, 
                                                                                  nx.ProbeParameter.COMPARTMENT_VOLTAGE, 
@@ -117,14 +116,15 @@ class Network:
     def connect_blocks(self, t_max, net):
         for l, layer in enumerate(self.layers):
             if l == len(self.layers)-1: break
-            connection_prototype = nx.ConnectionPrototype(weightExponent=layer.weight_exponent)
             for block in layer.blocks:
-                source_block = layer.compartment_groups[layer.blocks.index(block)]
-                for connection in block.connections["pre"]:
-                    index_target_block = self.layers[l+1].blocks.index(connection.post)
-                    target_block = self.layers[l+1].compartment_groups[index_target_block]
-                    weight, delay, mask = connection.get_matrices()
+                source_block = block.loihi_group
+                for target in block.get_connected_blocks():
+                    target_block = target.loihi_group
+                    weight, delay, mask = block.get_connection_matrices_to(target)
+                    connection_prototype = nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=1, numTagBits=0,  numWeightBits=8)
+                    #ipdb.set_trace()
                     source_block.connect(target_block, prototype=connection_prototype, weight=weight, delay=delay, connectionMask=mask)
+                    #ipdb.set_trace()
         return net
 
     def add_input_spikes(self, spike_list, net):
@@ -139,13 +139,13 @@ class Network:
         n_inputs = 0
         for i, input_spikes in enumerate(spike_list):
             input_spike_generator = net.createSpikeGenProcess(numPorts=1)
-            target_block = input_layer.compartment_groups[i] # later change this to index the right target block
-            input_spike_generator.connect(target_block, prototype=connection_prototype, 
+            target_block = input_layer.blocks[i].loihi_group # later change this to index the right target block
+            input_spike_generator.connect(target_block, prototype=connection_prototype, # change this too
                                           weight=np.array([[weight_e],[0],[0]]),
                                           connectionMask=np.array([[1],[0],[0]]))
             input_spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=input_spikes)
             n_inputs += 1
-        assert len(input_layer.compartment_groups) == n_inputs
+        assert len(input_layer.blocks) == n_inputs
         return net
 
     def compile_net(self, net):
@@ -154,7 +154,7 @@ class Network:
         
     def run_on_loihi(self, board, t_max, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = len(self.layers)*6*t_max
+        run_time = len(self.layers)*2*t_max
         board.run(run_time, partition=partition)
         board.disconnect()        
 

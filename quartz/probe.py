@@ -21,14 +21,7 @@ class Probe:
         self.loihi_probe = probe
         
     def plot(self):
-        probe_list = [probe_set.probes for probe_set in self.loihi_probe] 
-        fig = plotProbes(probes = probe_list)
-        #return fig
-#         n_subplots = len(self.loihi_probe.probes)
-#         f, axes = plt.subplots(n_subplots, 1, sharex=True)
-#         for i, probe in enumerate(self.loihi_probe.probes):
-#             axes[i].plot(probe.data)
-            #probe.plot()
+        plotProbes(probes = self.loihi_probe)
     
     def le_data(self):
         for s, probe_set in zip([self.SPIKE, self.VOLTAGE, self.CURRENT], self.loihi_probe):

@@ -16,12 +16,12 @@ class Neuron:
     input, hidden, output = range(3)
     pulse, acc = range(2)
 
-    def __init__(self, type=hidden, promoted=False, loihi_type=pulse, name=None, monitor=False):
+    def __init__(self, type=hidden, loihi_type=pulse, name=None, monitor=False, parent=None):
         self.type = type
         self.loihi_type = loihi_type
-        self.promoted = promoted
         self.name = name
         self.monitor = monitor
+        self.parent_block = parent
         self.synapses = {"pre": [], "post": []}
 
     def connect_to(self, target_neuron, weight, delay=0):

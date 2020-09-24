@@ -18,7 +18,6 @@ class Layer:
         self.layer_n = None
         self.prev_layer = None
         self.blocks = []
-        self.compartment_groups = []
 
     def _get_blocks_of_type(self, block_type):
         return [block for block in self.blocks if block.type == block_type]
@@ -100,17 +99,21 @@ class Dense(Layer):
                                                    type=Block.hidden, monitor=False, parent_layer=self)
                 splitter = quartz.blocks.Splitter(name=self.name+"l{0}-bias{1}-split".format(self.layer_n, i), 
                                                   type=Block.hidden, monitor=False, parent_layer=self)
-                bias.connect_to(splitter, self.weight_e)
-                input_blocks[0].connect_to(bias, np.array([[self.weight_e, 0]]))
+                bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
+                input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
                 bias_sign = 1 if biases[i] >= 0 else -1
-                splitter.connect_to(relco, np.array([[bias_sign,self.weight_e/n_inputs],[-bias_sign, 0]]))
+                splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc)
+                splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
+                splitter.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs)
                 self.blocks += [bias, splitter]
             
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
-                block.connect_to(relco, weight=np.array([[weight,self.weight_e/n_inputs],[-weight, 0]]))
+                delay = 5 if weight > 0 else 0
+                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, self.t_min+delay)
+                block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
+                block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
             self.blocks += [relco]
-        #ipdb.set_trace()
 
 
 class Conv2D(Layer):
@@ -143,7 +146,7 @@ class Conv2D(Layer):
             bias = quartz.blocks.ConstantDelay(value=biases[output_channel], monitor=False, name=self.name+"l{}-b{}-".format(self.layer_n, output_channel), parent_layer=self)
             splitter = quartz.blocks.Splitter(name=self.name+"l{}-bias{}-split-".format(self.layer_n, output_channel), promoted=False, monitor=False, parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-            input_neurons[0].connect_to(bias.recall_neurons()[0], self.weight_e)
+            input_neurons[0].connect_to(bias.input_neurons()[0], self.weight_e)
             self.blocks += [bias, splitter]
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
                 combinations = []
@@ -155,7 +158,6 @@ class Conv2D(Layer):
                 relco = quartz.blocks.ReLCo(combinations, monitor=self.monitor,\
                                   name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
                 self.blocks += [relco]
-                self.neurons += relco.output_neurons()
 
 
 class MaxPool2D(Layer):
@@ -212,7 +214,8 @@ class MonitorLayer(Layer):
         
         for block in prev_layer.output_blocks():
             monitor = quartz.blocks.Block(name=self.name, type=Block.output, monitor=self.monitor, parent_layer=self)
-            output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=self.monitor)
+            output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
-            block.connect_to(monitor, np.array([[self.weight_e, self.weight_e]])) # missing delays
+            block.first().connect_to(output_neuron, self.weight_e)
+            block.second().connect_to(output_neuron, self.weight_e, self.t_neu + self.t_min)
