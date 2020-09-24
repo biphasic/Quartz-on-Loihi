@@ -38,8 +38,9 @@ class Block:
         self.parent_layer = parent_layer
         self.connections = {"pre": [], "post": []}
     
-    def neurons(self):
-        return self.neurons
+    def neurons(self): return self.neurons
+    
+    def names(self): return [neuron.name for neuron in self.neurons]
 
     def _get_neurons_of_type(self, neuron_type):
         return [neuron for neuron in self.neurons if neuron.type == neuron_type]

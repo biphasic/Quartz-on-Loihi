@@ -202,7 +202,7 @@ class MaxPool2D(Layer):
 
 
 class MonitorLayer(Layer):
-    def __init__(self, name="monitor:", monitor=True, **kwargs):
+    def __init__(self, name="monitor:", monitor=False, **kwargs):
         super(MonitorLayer, self).__init__(name=name, monitor=monitor, **kwargs)
 
     def connect_from(self, prev_layer):

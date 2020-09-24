@@ -21,9 +21,15 @@ class Network:
             layers[i].connect_from(layers[i-1])
         
     def __call__(self, input_spike_list, t_max):
+        self.set_probe_t_max(t_max)
         board, probes = self.build_model(input_spike_list, t_max)
         self.run_on_loihi(board, t_max)
         return probes
+    
+    def set_probe_t_max(self, t_max):
+        for layer in self.layers:
+            for block in layer.blocks:
+                if block.monitor: block.probe.t_max = t_max
 
     def build_model(self, input_spike_list, t_max):
         net = nx.NxNet()
@@ -103,7 +109,9 @@ class Network:
                         block_group.addCompartments(net.createCompartment(pulse_proto))
                 weight, delay, mask = block.internal_connection_matrices()
                 block_group.connect(block_group, prototype=connection_prototype, weight=weight, delay=delay, connectionMask=mask)
-                if block.monitor: probes.append(block_group.probe([nx.ProbeParameter.SPIKE]))
+                if block.monitor: block.probe.set_loihi_probe(block_group.probe([nx.ProbeParameter.SPIKE, 
+                                                                                 nx.ProbeParameter.COMPARTMENT_VOLTAGE, 
+                                                                                 nx.ProbeParameter.COMPARTMENT_CURRENT]))
         return net, probes
 
     def connect_blocks(self, t_max, net):
