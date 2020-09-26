@@ -21,13 +21,15 @@ class Network:
             layers[i].connect_from(layers[i-1])
         
     def __call__(self, input_spike_list, t_max):
+        output_probe = quartz.probe(self.layers[-1])
         self.set_probe_t_max(t_max)
         board = self.build_model(input_spike_list, t_max)
         self.run_on_loihi(board, t_max)
-        # return
+        return np.array([value[0] for (key, value) in sorted(output_probe.output()[0].items())])
     
     def set_probe_t_max(self, t_max):
         for layer in self.layers:
+            if layer.monitor: layer.probe.t_max = t_max
             for block in layer.blocks:
                 if block.monitor: block.probe.t_max = t_max
 
@@ -87,6 +89,7 @@ class Network:
     def create_compartments(self, vth_mant):
         net = nx.NxNet()
         measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
+        layer_measurements = [nx.ProbeParameter.SPIKE]
         for i, layer in enumerate(self.layers):
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0)
@@ -109,6 +112,8 @@ class Network:
                     block_group.addCompartments(loihi_neuron)
                     if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))
                 if block.monitor: block.probe.set_loihi_probe(block_group.probe(measurements))
+            if layer.monitor:
+                layer.probe.set_loihi_probe([block.loihi_group.probe(layer_measurements)[0] for block in layer.blocks])
         return net
 
     def connect_blocks(self, net):

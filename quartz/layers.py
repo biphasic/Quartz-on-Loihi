@@ -29,8 +29,9 @@ class Layer:
     def get_params_at_once(self):
         return self.weight_e, self.weight_acc, self.t_min, self.t_neu
     
-    def neurons(self):
-        return [block.neurons for block in self.blocks]
+    def neurons(self): return [block.neurons for block in self.blocks]
+    
+    def names(self): return [block.name for block in self.blocks]
 
     def n_compartments(self):
         return sum([block.n_compartments() for block in self.blocks])
@@ -211,9 +212,9 @@ class MonitorLayer(Layer):
         self.prev_layer = prev_layer
         self.name = "l{}-{}".format(self.layer_n, self.name)
         
-        for block in prev_layer.output_blocks():
-            monitor = quartz.blocks.Block(name=self.name, type=Block.output, monitor=self.monitor, parent_layer=self)
-            output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=self.monitor, parent=monitor)
+        for i, block in enumerate(prev_layer.output_blocks()):
+            monitor = quartz.blocks.Block(name=self.name+str(i), type=Block.output, monitor=self.monitor, parent_layer=self)
+            output_neuron = Neuron(name=block.name + "-monitor-" + str(i), type=Block.input, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
             block.first().connect_to(output_neuron, self.weight_e)#, self.t_min)

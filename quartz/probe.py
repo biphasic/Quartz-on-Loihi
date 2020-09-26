@@ -1,9 +1,18 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import quartz
+import ipdb
 from nxsdk.utils.plotutils import plotProbes
 from quartz.utils import decode_spike_timings
 
+
+#from quartz.probe import LayerProbe, BlockProbe
+
+
+def probe(target):
+    if isinstance(target, quartz.layers.Layer):
+        return LayerProbe(target)
+    return BlockProbe(target)
 
 class Probe:
     SPIKE = "spikes"
@@ -29,17 +38,24 @@ class Probe:
             for n, probe in enumerate(probe_set):
                 self.data[n].update({s: probe.data})
         return self.data
+    
+
+class LayerProbe(Probe):
+    def __init__(self, target):
+        super(LayerProbe, self).__init__(target)
+
+    def output(self):
+        #ipdb.set_trace()
+        probes = [probe.probes[0] for probe in self.loihi_probe]
+        names = self.target.names()
+        return decode_spike_timings(dict(zip(names, probes)), self.t_max)
+    
         
+class BlockProbe(Probe):
+    def __init__(self, target):
+        super(BlockProbe, self).__init__(target)
+
     def output(self):
         probes = self.loihi_probe[0].probes
-        names = self.target.names()        
+        names = self.target.names()
         return decode_spike_timings(dict(zip(names, probes)), self.t_max)
-# class LayerProbe(Probe):
-#     def __init__(self):
-#         self.test = 3
-#         pass
-
-# class BlockProbe(Probe):
-#     def __init__(self):
-#         self.test = 3
-#         pass
