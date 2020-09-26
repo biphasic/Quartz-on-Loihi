@@ -22,9 +22,9 @@ class Network:
         
     def __call__(self, input_spike_list, t_max):
         self.set_probe_t_max(t_max)
-        board, probes = self.build_model(input_spike_list, t_max)
+        board = self.build_model(input_spike_list, t_max)
         self.run_on_loihi(board, t_max)
-        return probes
+        # return
     
     def set_probe_t_max(self, t_max):
         for layer in self.layers:
@@ -42,14 +42,14 @@ class Network:
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
-        net, probes = self.create_compartments(vth_mant)
+        net = self.create_compartments(vth_mant)
         # connect loihi compartments
-        net = self.connect_blocks(t_max, net)
+        net = self.connect_blocks(net)
         # add inputs
         net = self.add_input_spikes(input_spike_list, net)
         # compile the whole thing
         board = self.compile_net(net)
-        return board, probes
+        return board
 
     def n_compartments(self):
         return sum([layer.n_compartments() for layer in self.layers])
@@ -86,16 +86,15 @@ class Network:
         
     def create_compartments(self, vth_mant):
         net = nx.NxNet()
-        probes = []
+        measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
         for i, layer in enumerate(self.layers):
-            connection_prototype = nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=1, numTagBits=0, numWeightBits=8)
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0)
                 block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
                 for neuron in block.neurons:
                     if neuron.loihi_type == Neuron.acc:
-                        block_group.addCompartments(net.createCompartment(acc_proto))
+                        loihi_neuron = net.createCompartment(acc_proto)
                     else:
                         pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent
                         no_inputs = len(neuron.incoming_synapses())
@@ -105,26 +104,27 @@ class Network:
                             if ratio != 1:
                                 pulse_mant = layer.weight_e * ratio * 2**layer.weight_exponent - 1
                         pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
-                        block_group.addCompartments(net.createCompartment(pulse_proto))
-                weight, delay, mask = block.get_connection_matrices_to(block)
-                block_group.connect(block_group, prototype=connection_prototype, weight=weight, delay=delay, connectionMask=mask)
-                if block.monitor: block.probe.set_loihi_probe(block_group.probe([nx.ProbeParameter.SPIKE, 
-                                                                                 nx.ProbeParameter.COMPARTMENT_VOLTAGE, 
-                                                                                 nx.ProbeParameter.COMPARTMENT_CURRENT]))
-        return net, probes
+                        loihi_neuron = net.createCompartment(pulse_proto)
+                    neuron.loihi_neuron = loihi_neuron
+                    block_group.addCompartments(loihi_neuron)
+                    if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))
+                if block.monitor: block.probe.set_loihi_probe(block_group.probe(measurements))
+        return net
 
-    def connect_blocks(self, t_max, net):
+    def connect_blocks(self, net):
         for l, layer in enumerate(self.layers):
             if l == len(self.layers)-1: break
             for block in layer.blocks:
                 source_block = block.loihi_group
                 for target in block.get_connected_blocks():
                     target_block = target.loihi_group
-                    weight, delay, mask = block.get_connection_matrices_to(target)
-                    connection_prototype = nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=1, numTagBits=0,  numWeightBits=8)
-                    #ipdb.set_trace()
-                    source_block.connect(target_block, prototype=connection_prototype, weight=weight, delay=delay, connectionMask=mask)
-                    #ipdb.set_trace()
+                    weights, delays, mask = block.get_connection_matrices_to(target)
+                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+                                      nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3)]
+                    proto_map = np.zeros_like(weights).astype(int)
+                    proto_map[weights<0] = 1
+                    source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                         weight=weights, delay=delays, connectionMask=mask)
         return net
 
     def add_input_spikes(self, spike_list, net):
