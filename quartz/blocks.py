@@ -141,18 +141,20 @@ class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, monitor=False, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
         calc = Neuron(name=name + "calc", monitor=monitor, loihi_type=Neuron.acc, type=Neuron.input, parent=self)
+        ref = Neuron(name=name + "ref", monitor=monitor, loihi_type=Neuron.acc, parent=self)
         sync = Neuron(name=name + "sync", monitor=monitor, type=Neuron.input, parent=self)
         first = Neuron(name=name + "first", monitor=monitor, type=Neuron.output, parent=self)
-        second = Neuron(name=name + "second", monitor=monitor, loihi_type=Neuron.acc, type=Neuron.output, parent=self)
-        self.neurons = [calc, sync, first, second]
+        second = Neuron(name=name + "second", monitor=monitor, type=Neuron.output, parent=self)
+        self.neurons = [calc, ref, sync, first, second]
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         sync.connect_to(calc, weight_acc)
-        sync.connect_to(second, weight_acc)
-        calc.connect_to(first, weight_e)
+        sync.connect_to(ref, weight_acc)
+        calc.connect_to(first, weight_e, t_min)
         calc.connect_to(calc, -weight_acc)
-        second.connect_to(first, weight_e)
-        second.connect_to(second, -weight_acc)
+        ref.connect_to(first, weight_e)
+        ref.connect_to(second, weight_e, t_min)
+        ref.connect_to(ref, -weight_acc)
         first.connect_to(first, -weight_e)
 
 

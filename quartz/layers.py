@@ -216,5 +216,5 @@ class MonitorLayer(Layer):
             output_neuron = Neuron(name=block.name + "-monitor", type=Block.input, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
-            block.first().connect_to(output_neuron, self.weight_e)
-            block.second().connect_to(output_neuron, self.weight_e, self.t_neu + self.t_min)
+            block.first().connect_to(output_neuron, self.weight_e)#, self.t_min)
+            block.second().connect_to(output_neuron, self.weight_e)#, self.t_neu + self.t_min)
