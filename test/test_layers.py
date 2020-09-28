@@ -25,50 +25,45 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(loihi_model.n_parameters(), 10100)
     
     @parameterized.expand([
-        ((10,10,), 10),
-        ((120,1,), 84),
-        ((84,1,), 10),
+        ((1,10,10,), 10),
+#        ((1,120,1,), 84),
+#        ((1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**9
-        run_time = 6*t_max
-        dims = (1,*dim_input,2)
-        weight_e = 500
+        run_time = 4*t_max
+        weight_e = 101
         weight_acc = 128
         model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
-        # np.random.seed(seed=47)
-        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
+
+        np.random.seed(seed=47)
+        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 4
         biases = (np.random.rand(dim_output) - 0.5) / 2
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=dims, **model_args),
-            layers.FullyConnected(weights=weights, biases=biases, split_output=False, **model_args),
+            layers.InputLayer(dims=dim_input, **model_args),
+            layers.Dense(weights=weights, biases=biases, **model_args),
             layers.MonitorLayer(**model_args),
         ])
 
-        values = np.random.rand(np.product(dims)//2)
-        inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
+        values = np.random.rand(np.product(dim_input)) # np.ones((np.product(dims))) * 0.5
+        inputs = quartz.decode_values_into_spike_input(values, t_max)
+
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
 
         pt_model = nn.Sequential(
-            nn.Linear(in_features=np.product(dims[1:3]), out_features=n_outputs), 
+            nn.Linear(in_features=np.product(dim_input), out_features=dim_output), 
             nn.ReLU()
         )
         pt_model[0].weight = torch.nn.Parameter(torch.tensor(quantized_weights))
-        pt_model[0].bias = torch.nn.Parameter(torch.tensor(quantized_biases))
-        model_output = pt_model(torch.tensor(quantized_values)).detach().numpy()
-        
-        self.assertEqual(loihi_model.n_compartments(), 1400)
-        self.assertEqual(loihi_model.n_connections(), 32100)
-        self.assertEqual(loihi_model.n_parameters(), 10100)
-        # output_values, spike_times = l2.run_on_loihi(run_time, t_max=t_max, input_spike_list=inputs, plot=False)
-        #loihi_output = [value[0] for (key, value) in sorted(output_values.items())]
-        #self.assertEqual(len(output_values.items()), len(model_output.flatten()))
-        #combinations = list(zip(loihi_output, model_output.flatten()))
-        #for (out, ideal) in combinations:
-        #    if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+        pt_model[0].bias = torch.nn.Parameter(torch.tensor((quantized_biases)))
+        pt_model_output = pt_model(torch.tensor(quantized_values)).detach().numpy()
+        loihi_model_output = loihi_model(inputs, t_max)
+        combinations = list(zip(loihi_model_output, pt_model_output.flatten()))
+        for (out, ideal) in combinations:
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
     @parameterized.expand([

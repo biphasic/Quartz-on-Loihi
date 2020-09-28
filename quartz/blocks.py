@@ -71,7 +71,7 @@ class Block:
             for synapse in neuron.outgoing_synapses():
                 if synapse.post in block.neurons:
                     j = block.neurons.index(synapse.post)
-                    weights[j, i] = synapse.weight # possibly round this one?
+                    weights[j, i] = round(synapse.weight)
                     delays[j, i] = synapse.delay
         mask[weights!=0] = 1
         return weights, delays, mask

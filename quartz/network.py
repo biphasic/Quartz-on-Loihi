@@ -130,6 +130,11 @@ class Network:
                     proto_map[weights<0] = 1
                     source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                          weight=weights, delay=delays, connectionMask=mask)
+                    if block == target and isinstance(block, quartz.blocks.ConstantDelay) and len(block.neurons) == 2:
+                        key_delay = block.neurons[0].synapses["pre"][0].delay # connect a second time because edge case
+                        delays = np.array([[0, 0],[key_delay, 0]]) # of two synapses to the same neuron with diff delays
+                        source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                         weight=weights, delay=delays, connectionMask=mask)
         return net
 
     def add_input_spikes(self, spike_list, net):
