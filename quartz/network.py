@@ -99,7 +99,7 @@ class Network:
                     if neuron.loihi_type == Neuron.acc:
                         loihi_neuron = net.createCompartment(acc_proto)
                     else:
-                        pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent
+                        pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
                         no_inputs = len(neuron.incoming_synapses())
                         if no_inputs > 0:
                             assert no_inputs <= layer.weight_e

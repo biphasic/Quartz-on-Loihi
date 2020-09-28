@@ -49,7 +49,7 @@ class Block:
     
     def get_connected_blocks(self):
         connected_blocks = []
-        for neuron in self.output_neurons():
+        for neuron in self.neurons:
             for synapse in neuron.outgoing_synapses():
                 connected_blocks.append(synapse.post.parent_block)
         return set(connected_blocks)
@@ -103,7 +103,7 @@ class ConstantDelay(Block):
         input_, output = self.neurons
         self.neurons = [] + [input_]
         i = 0
-        while(delay>numDendriticAccumulators):
+        while(delay>(numDendriticAccumulators-t_min)):
             intermediate = Neuron(name=self.name+"intermediate"+str(i), parent=self)
             self.neurons[-1].connect_to(intermediate, weight_e, numDendriticAccumulators)
             self.neurons += [intermediate]
