@@ -143,8 +143,8 @@ class Conv2D(Layer):
             patches = [image.extract_patches_2d(indices[input_channel,:,:,:], (kernel_size)) for input_channel in range(input_channels)]
             patches = np.stack(patches)
             assert np.product(side_lengths) == patches.shape[1]
-            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], monitor=False, name=self.name+"l{}-b{}-".format(self.layer_n, output_channel), parent_layer=self)
-            splitter = quartz.blocks.Splitter(name=self.name+"l{}-bias{}-split-".format(self.layer_n, output_channel), promoted=False, monitor=False, parent_layer=self)
+            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], name=self.name+"l{}-b{}-".format(self.layer_n, output_channel), parent_layer=self)
+            splitter = quartz.blocks.Splitter(name=self.name+"l{}-bias{}-split-".format(self.layer_n, output_channel), parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
             input_neurons[0].connect_to(bias.input_neurons()[0], self.weight_e)
             self.blocks += [bias, splitter]
@@ -213,8 +213,8 @@ class MonitorLayer(Layer):
         self.name = "l{}-{}".format(self.layer_n, self.name)
         
         for i, block in enumerate(prev_layer.output_blocks()):
-            monitor = quartz.blocks.Block(name=self.name+str(i), type=Block.output, monitor=self.monitor, parent_layer=self)
-            output_neuron = Neuron(name=block.name + "-monitor-" + str(i), type=Block.input, monitor=self.monitor, parent=monitor)
+            monitor = quartz.blocks.Block(name=self.name+"{0:3.0f}".format(i), type=Block.output, monitor=self.monitor, parent_layer=self)
+            output_neuron = Neuron(name=block.name + "-monitor-{0:3.0f}".format(i), type=Block.input, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
             block.first().connect_to(output_neuron, self.weight_e)#, self.t_min)

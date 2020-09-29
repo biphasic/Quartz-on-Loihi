@@ -75,16 +75,20 @@ class Network:
         core_id = 0
         compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
+            if i == 0:
+                max_n_comps = 128
+            else:
+                max_n_comps = 512
             self.core_ids[core_id] = i
             for block in layer.blocks:
-                if compartments_on_core[core_id] + len(block.neurons) >= 1024:
+                if compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
                     core_id += 1
                     self.core_ids[core_id] = i
                 block.core_id = core_id
                 compartments_on_core[core_id] += len(block.neurons)
             core_id += 1
-#         print(self.core_ids)
-#         print(compartments_on_core)
+        #print(self.core_ids)
+        #print(compartments_on_core)
         
     def create_compartments(self, vth_mant):
         net = nx.NxNet()
@@ -117,6 +121,7 @@ class Network:
         return net
 
     def connect_blocks(self, net):
+        print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
             if l == len(self.layers)-1: break
             for block in layer.blocks:
@@ -124,10 +129,16 @@ class Network:
                 for target in block.get_connected_blocks():
                     target_block = target.loihi_group
                     weights, delays, mask = block.get_connection_matrices_to(target)
-                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                      nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3)]
+                    if layer.weight_acc > 255:
+                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent+1, signMode=2),
+                                           nx.ConnectionPrototype(weightExponent=layer.weight_exponent+1, signMode=3),]
+                        weights /= 2
+                    else:
+                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+                                           nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
+                    weights = weights.round()
                     source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                          weight=weights, delay=delays, connectionMask=mask)
                     if block == target and isinstance(block, quartz.blocks.ConstantDelay) and len(block.neurons) == 2:
@@ -140,7 +151,7 @@ class Network:
     def add_input_spikes(self, spike_list, net):
         input_layer = self.layers[0]
         if input_layer.weight_e > 255:
-            weight_e = math.ceil(self.weight_e / 2)
+            weight_e = math.ceil(input_layer.weight_e / 2)
             weight_exponent = input_layer.weight_exponent + 1
         else:
             weight_e = input_layer.weight_e
@@ -164,7 +175,7 @@ class Network:
         
     def run_on_loihi(self, board, t_max, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = len(self.layers)*2*t_max
+        run_time = len(self.layers)*3*t_max
         board.run(run_time, partition=partition)
         board.disconnect()        
 

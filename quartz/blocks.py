@@ -52,7 +52,11 @@ class Block:
         for neuron in self.neurons:
             for synapse in neuron.outgoing_synapses():
                 connected_blocks.append(synapse.post.parent_block)
-        return set(connected_blocks)
+        unique_blocks = []
+        for block in connected_blocks:
+            if block not in unique_blocks:
+                unique_blocks.append(block)
+        return unique_blocks # set(connected_blocks)
 
     def incoming_connections(self):
         return self.connections["post"]
@@ -71,7 +75,7 @@ class Block:
             for synapse in neuron.outgoing_synapses():
                 if synapse.post in block.neurons:
                     j = block.neurons.index(synapse.post)
-                    weights[j, i] = round(synapse.weight)
+                    weights[j, i] = synapse.weight
                     delays[j, i] = synapse.delay
         mask[weights!=0] = 1
         return weights, delays, mask

@@ -25,20 +25,21 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(loihi_model.n_parameters(), 10100)
     
     @parameterized.expand([
-        ((1,10,10,), 10),
-#        ((1,120,1,), 84),
-#        ((1,84,1,), 10),
+        #((1,10,10,), 10),
+        ((1,120,1,), 84),
+        #((1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**9
         run_time = 4*t_max
-        weight_e = 101
-        weight_acc = 128
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
+        weight_e = 500
+        weight_acc = 2**8
+        weight_acc_real = weight_acc / 2
+        model_args = {'weight_e':weight_e, 'weight_acc':wei `ght_acc}
 
         np.random.seed(seed=47)
-        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 4
-        biases = (np.random.rand(dim_output) - 0.5) / 2
+        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
+        biases = (np.random.rand(dim_output) - 0.5) / 3
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input, **model_args),
@@ -50,7 +51,7 @@ class TestLayers(unittest.TestCase):
         inputs = quartz.decode_values_into_spike_input(values, t_max)
 
         quantized_values = (values*t_max).round()/t_max
-        quantized_weights = (weight_acc*weights).round()/weight_acc
+        quantized_weights = (weight_acc_real*weights).round()/weight_acc_real
         quantized_biases = (biases*t_max).round()/t_max
 
         pt_model = nn.Sequential(
