@@ -25,6 +25,7 @@ class Network:
         self.set_probe_t_max(t_max)
         board = self.build_model(input_spike_list, t_max)
         self.run_on_loihi(board, t_max)
+        #print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
         return np.array([value[0] for (key, value) in sorted(output_probe.output()[0].items())])
     
     def set_probe_t_max(self, t_max):
@@ -69,7 +70,7 @@ class Network:
     def check_weight_exponents(self, t_max, vth_mant):
         for layer in self.layers:
             layer.weight_exponent = np.log2(vth_mant/(t_max*layer.weight_acc))
-        
+
     def check_layout(self):
         self.core_ids = np.zeros((128))
         core_id = 0
@@ -129,7 +130,7 @@ class Network:
                 for target in block.get_connected_blocks():
                     target_block = target.loihi_group
                     weights, delays, mask = block.get_connection_matrices_to(target)
-                    if layer.weight_acc > 255:
+                    if layer.weight_acc > 255 and layer.weight_e > 255:
                         conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent+1, signMode=2),
                                            nx.ConnectionPrototype(weightExponent=layer.weight_exponent+1, signMode=3),]
                         weights /= 2
@@ -175,7 +176,7 @@ class Network:
         
     def run_on_loihi(self, board, t_max, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = len(self.layers)*3*t_max
+        run_time = len(self.layers)*t_max
         board.run(run_time, partition=partition)
         board.disconnect()        
 

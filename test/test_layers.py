@@ -25,9 +25,9 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(loihi_model.n_parameters(), 10100)
     
     @parameterized.expand([
-        #((1,10,10,), 10),
+        ((1,10,10,), 10),
         ((1,120,1,), 84),
-        #((1,84,1,), 10),
+        ((1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**9
@@ -35,7 +35,7 @@ class TestLayers(unittest.TestCase):
         weight_e = 500
         weight_acc = 2**8
         weight_acc_real = weight_acc / 2
-        model_args = {'weight_e':weight_e, 'weight_acc':wei `ght_acc}
+        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
 
         np.random.seed(seed=47)
         weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5

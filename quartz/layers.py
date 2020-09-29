@@ -103,9 +103,9 @@ class Dense(Layer):
                 block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
             self.blocks += [relco]
             if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{1}-".format(self.layer_n, i), 
+                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{0:2.0f}-".format(i), 
                                                    type=Block.hidden, monitor=False, parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{1}-".format(self.layer_n, i), 
+                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}-".format(i), 
                                                   type=Block.hidden, monitor=False, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
                 input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
@@ -131,32 +131,44 @@ class Conv2D(Layer):
         assert weights.shape[1] == prev_layer.output_dims[0]
         assert weights.shape[0] == biases.shape[0]
         assert np.product(weights.shape[1:]) <= self.weight_e
-        input_neurons = prev_layer.output_neurons()
+        input_blocks = prev_layer.output_blocks()
         input_channels = weights.shape[1]
         output_channels = weights.shape[0]
         kernel_size = weights.shape[2:]
         side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0]) / self.stride + 1), int((prev_layer.output_dims[2] - kernel_size[1]) / self.stride + 1))
         self.output_dims = (output_channels, *side_lengths)
         
-        indices = np.arange(len(input_neurons)).reshape(prev_layer.output_dims)
+        indices = np.arange(len(input_blocks)).reshape(*prev_layer.output_dims)
         for output_channel in range(output_channels): # no of output channels is most outer loop
-            patches = [image.extract_patches_2d(indices[input_channel,:,:,:], (kernel_size)) for input_channel in range(input_channels)]
+            patches = [image.extract_patches_2d(indices[input_channel,:,:], (kernel_size)) for input_channel in range(input_channels)]
             patches = np.stack(patches)
             assert np.product(side_lengths) == patches.shape[1]
-            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], name=self.name+"l{}-b{}-".format(self.layer_n, output_channel), parent_layer=self)
-            splitter = quartz.blocks.Splitter(name=self.name+"l{}-bias{}-split-".format(self.layer_n, output_channel), parent_layer=self)
+            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], name=self.name+"const-n{0:2.0f}-".format(output_channel), 
+                                               type=Block.hidden, monitor=False, parent_layer=self)
+            splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}-".format(output_channel), 
+                                              type=Block.hidden, monitor=False, parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-            input_neurons[0].connect_to(bias.input_neurons()[0], self.weight_e)
+            input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
             self.blocks += [bias, splitter]
+            n_inputs = np.product(self.weights.shape[2:]) + 1
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
-                combinations = []
-                for input_channel in range(0,input_channels):
-                    neuron_patch = np.array(input_neurons)[patches[input_channel,i,:,:,:].flatten()]
-                    combinations += list(zip(neuron_patch[::2], neuron_patch[1::2], weights[output_channel,input_channel,:,:].flatten()))
+                relco = quartz.blocks.ReLCo(name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
+                for input_channel in range(input_channels):
+                    block_patch = np.array(input_blocks)[patches[input_channel,i,:,:].flatten()]
+                    patch_weights = weights[output_channel,input_channel,:,:].flatten()
+                    assert len(block_patch) == len(patch_weights)
+                    #ipdb.set_trace()
+                    for j, block in enumerate(block_patch):
+                        weight = patch_weights[j]
+                        delay = 5 if weight > 0 else 0
+                        block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay)
+                        block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
+                        block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
+                    #ipdb.set_trace()
                 bias_sign = 1 if biases[output_channel] >= 0 else -1
-                combinations += [(splitter.first(), splitter.second(), bias_sign)]
-                relco = quartz.blocks.ReLCo(combinations, monitor=self.monitor,\
-                                  name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
+                splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc)
+                splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
+                splitter.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs)
                 self.blocks += [relco]
 
 
