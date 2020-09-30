@@ -150,21 +150,19 @@ class Conv2D(Layer):
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
             input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
             self.blocks += [bias, splitter]
-            n_inputs = np.product(self.weights.shape[2:]) + 1
+            n_inputs = np.product(self.weights.shape[1:]) + 1
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
                 relco = quartz.blocks.ReLCo(name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
                 for input_channel in range(input_channels):
                     block_patch = np.array(input_blocks)[patches[input_channel,i,:,:].flatten()]
                     patch_weights = weights[output_channel,input_channel,:,:].flatten()
                     assert len(block_patch) == len(patch_weights)
-                    #ipdb.set_trace()
                     for j, block in enumerate(block_patch):
                         weight = patch_weights[j]
                         delay = 5 if weight > 0 else 0
                         block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay)
                         block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
                         block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
-                    #ipdb.set_trace()
                 bias_sign = 1 if biases[output_channel] >= 0 else -1
                 splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc)
                 splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)

@@ -68,37 +68,49 @@ class TestLayers(unittest.TestCase):
 
 
     @parameterized.expand([
-        (( 3, 8, 8,2,), (  5, 3,2,2), 500),
-        ((16, 5, 5,2,), (120,16,5,5), 500),
+        #(( 3, 8, 8), (  5, 3,2,2), 500),
+        ((16, 5, 5), (120,16,5,5), 500),
     ])
     def test_conv2d(self, input_dims, weight_dims, weight_e):
         t_max = 2**9
-        run_time = 8*t_max
-        weight_acc = 128
-        kernel_size = weight_dims[2:]
+        weight_acc = 2**8
+        weight_acc_real = weight_acc / 2
+        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
 
-        l0 = quartz.layers.InputLayer(dims=input_dims, monitor=False, weight_e=weight_e, weight_acc=weight_acc)
+        kernel_size = weight_dims[2:]
         weights = (np.random.rand(*weight_dims)-0.5) / 5
         biases = (np.random.rand(weight_dims[0])-0.5) / 2
-        l1 = quartz.layers.Conv2D(prev_layer=l0, weights=weights, biases=biases, split_output=False,\
-                                 monitor=False, weight_e=weight_e, weight_acc=weight_acc)
-        l2 = quartz.layers.MonitorLayer(prev_layer=l1, weight_e=weight_e, weight_acc=weight_acc)
 
-        values = np.random.rand(np.product(input_dims)//2)
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=input_dims, **model_args),
+            layers.Conv2D(weights=weights, biases=biases, **model_args),
+            layers.MonitorLayer(**model_args),
+        ])
+
+        input0 = quartz.probe(loihi_model.layers[0].blocks[0])
+        hidden0 = quartz.probe(loihi_model.layers[1].blocks[2])
+        hidden1 = quartz.probe(loihi_model.layers[1].blocks[-1])
+        calc_probe = quartz.probe(loihi_model.layers[1].blocks[-1].neurons[0])
+        sync_probe = quartz.probe(loihi_model.layers[1].blocks[-1].neurons[2])
+
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
+
         quantized_values = (values*t_max).round()/t_max
-        quantized_weights = (weight_acc*weights).round()/weight_acc
+        quantized_values = quantized_values.reshape(*input_dims)
+        quantized_weights = (weight_acc_real*weights).round()/weight_acc_real
         quantized_biases = (biases*t_max).round()/t_max
-                
+
         model = nn.Sequential(nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=kernel_size), nn.ReLU())
         model[0].weight = torch.nn.Parameter(torch.tensor(quantized_weights))
         model[0].bias = torch.nn.Parameter(torch.tensor(quantized_biases))
-        model_output = model(torch.tensor(quantized_values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
-
-        output_values, spike_times = l2.run_on_loihi(run_time, t_max=t_max, input_spike_list=inputs, partition="nahuku32", plot=False)
-        self.assertEqual(len(output_values.items()), len(model_output.flatten()))
-        output_combinations = list(zip([value[0] for (key, value) in sorted(output_values.items())], model_output.flatten()))
+        model_output = model(torch.tensor(values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
+        output_values = loihi_model(inputs, t_max)
+        
+        self.assertEqual(len(output_values), len(model_output.flatten()))
+        output_combinations = list(zip(output_values, model_output.flatten()))
         #print(output_combinations)
+        
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
 
