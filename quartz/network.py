@@ -124,27 +124,19 @@ class Network:
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
-            if l == len(self.layers)-1: break
-#             if isinstance(target.parent_layer, quartz.layers.Conv2d):
-#                 pass
-#                 and isinstance(block, quartz.blocks.ReLCo)
-#                         and isinstance(target, quartz.blocks.ReLCo) and target not block:
-#                             conv_connection = connection
-                
-                
+            conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+                               nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
             for block in layer.blocks:
-                source_block = block.loihi_group
-                for target in block.get_connected_blocks():
-                    target_block = target.loihi_group
-                    weights, delays, mask = block.get_connection_matrices_to(target)
-                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
+                target_block = block.loihi_group
+                for source in block.get_connected_blocks():
+                    source_block = source.loihi_group
+                    weights, delays, mask = source.get_connection_matrices_to(block)
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
                     weights = weights.round()
                     connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                                       weight=weights, delay=delays, connectionMask=mask)
-                    if block == target and isinstance(block, quartz.blocks.ConstantDelay) and len(block.neurons) == 2:
+                    if block == source and isinstance(block, quartz.blocks.ConstantDelay) and len(block.neurons) == 2:
                         key_delay = block.neurons[0].synapses["pre"][0].delay # connect a second time because edge case
                         delays = np.array([[0, 0],[key_delay, 0]]) # of two synapses to the same neuron with diff. delays
                         source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
