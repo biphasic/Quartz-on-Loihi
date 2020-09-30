@@ -142,4 +142,4 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(len(output_values), len(model_output.flatten()))
         output_combinations = list(zip(output_values, model_output.flatten()))
         for (out, ideal) in output_combinations:
-            self.assertAlmostEqual(out, ideal, places=2)
+            self.assertEqual(out, ideal)
