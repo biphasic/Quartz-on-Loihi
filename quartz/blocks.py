@@ -163,39 +163,9 @@ class ReLCo(Block):
 
 
 class MaxPooling(Block):
-    def __init__(self, extra_delay_first=0, extra_delay_sec=0, split_output=False, name="pool:", type=Block.output, monitor=False, **kwargs):
-        super(MaxPooling, self).__init__(name=name, monitor=monitor, **kwargs)
-        sync = Neuron(name=name + "sync", monitor=monitor, parent=self)
+    def __init__(self, name="pool:", type=Block.output, monitor=False, **kwargs):
+        super(MaxPooling, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
+        sync = Neuron(type=Neuron.output, name=name + "sync", monitor=monitor, parent=self)
         output = Neuron(type=Neuron.output, name=name + "output", monitor=monitor, parent=self)
         self.neurons = [sync, output]
 
-        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        if split_input:
-            for i, (first_input, second_input) in enumerate(inputs):
-                acc1 = Neuron(name=name + "acc1_{}".format(i), monitor=monitor, loihi_type=Neuron.acc, parent=self)
-                acc2 = Neuron(name=name + "acc2_{}".format(i), monitor=monitor, loihi_type=Neuron.acc, parent=self)
-                first_input.connect_to(acc1, weight_acc, extra_delay_first)
-                second_input.connect_to(acc2, weight_acc, extra_delay_sec)
-                acc1.connect_to(acc2, -weight_acc)
-                acc1.connect_to(sync, weight_e/len(inputs))
-                acc1.connect_to(acc1, -weight_acc)
-                acc2.connect_to(output, weight_e/len(inputs))
-                acc2.connect_to(acc2, -weight_acc)
-                sync.connect_to(acc2, weight_acc)
-                self.neurons += [acc1, acc2]
-        else:
-            for i, input_ in enumerate(inputs):
-                acc1 = Neuron(name=name + "acc1_{}".format(i), monitor=monitor, parent=self)
-                acc2 = Neuron(name=name + "acc2_{}".format(i), monitor=monitor, parent=self)
-                input_.first().connect_to(acc1, weight_acc, extra_delay_first)
-                input_.second().connect_to(acc2, weight_acc, extra_delay_sec)
-                acc1.connect_to(acc2, -weight_acc)
-                acc1.connect_to(sync, weight_e/len(inputs))
-                acc2.connect_to(output, weight_e/len(inputs))
-                sync.connect_to(acc2, weight_acc)
-                self.neurons += [acc1, acc2]
-
-        if split_output:
-            sync.type = Neuron.output
-        else:
-            sync.connect_to(output, weight_e)

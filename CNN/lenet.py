@@ -10,11 +10,11 @@ class LeNet5(nn.Module):
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.drop1 = nn.Dropout2d(0.5*drop)
         
-        self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1)
+        self.conv2 = nn.Conv2d(in_channels=6, out_channels=10, kernel_size=5, stride=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
         self.drop2 = nn.Dropout2d(drop)
         
-        self.conv3 = nn.Conv2d(in_channels=16, out_channels=120, kernel_size=5, stride=1)
+        self.conv3 = nn.Conv2d(in_channels=10, out_channels=120, kernel_size=5, stride=1)
         
         self.fc1 = nn.Linear(in_features=120, out_features=84)
         self.drop4 = nn.Dropout(drop)

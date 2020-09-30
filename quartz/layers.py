@@ -182,35 +182,37 @@ class MaxPool2D(Layer):
         self.name = "l{}-{}".format(self.layer_n, self.name)
         kernel_size = self.kernel_size
         if self.stride==None: self.stride = kernel_size[0]
-        input_neurons = prev_layer.output_neurons()
+        input_blocks = prev_layer.output_blocks()
         self.output_dims = list(prev_layer.output_dims)
         self.output_dims[1] = int(self.output_dims[1]/kernel_size[0])
         self.output_dims[2] = int(self.output_dims[2]/kernel_size[1])
         n_output_channels = self.output_dims[0]
-        extra_delay_first = 0
-        extra_delay_sec = 0
-        if isinstance(prev_layer, Conv2D):
-            extra_delay_sec=2
-        if isinstance(prev_layer, MaxPool2D):
-            extra_delay_first=1
 
-        indices = np.arange(len(input_neurons)).reshape(prev_layer.output_dims)
+        indices = np.arange(len(input_blocks)).reshape(*prev_layer.output_dims)
         for output_channel in range(n_output_channels): # no of output channels is most outer loop
-            patches = image.extract_patches_2d(indices[output_channel,:,:,:], (kernel_size)) # extract patches with stride 1
+            patches = image.extract_patches_2d(indices[output_channel,:,:], (kernel_size)) # extract patches with stride 1
             patches = np.stack(patches)
             patches_side_length = int(np.sqrt(patches.shape[0]))
             patches = patches.reshape(patches_side_length, patches_side_length, *kernel_size, -1) # align patches as a rectangle
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *kernel_size, patches.shape[-1]) # pick only patches that are interesting (stride)
             
             for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
-                neuron_patch = np.array(input_neurons)[patches[i,:,:,:].flatten()]
-                combination = list(zip(neuron_patch[::2], neuron_patch[1::2],))
-                
-                maxpool = quartz.blocks.MaxPooling(combination, monitor=self.monitor,
-                                                  extra_delay_first=extra_delay_first, extra_delay_sec=extra_delay_sec,
-                                                  name="pool-l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
+                maxpool = quartz.blocks.MaxPooling(name="pool-l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
+                block_patch = np.array(input_blocks)[patches[i,:,:,:].flatten()]
+                n_inputs = len(block_patch)
+                for block in block_patch:
+                    acc1 = Neuron(name=maxpool.name + "acc1_{}".format(i), loihi_type=Neuron.acc, parent=maxpool)
+                    acc2 = Neuron(name=maxpool.name + "acc2_{}".format(i), loihi_type=Neuron.acc, parent=maxpool)
+                    block.first().connect_to(acc1, self.weight_acc, self.t_min)
+                    block.second().connect_to(acc2, self.weight_acc)
+                    acc1.connect_to(acc2, -self.weight_acc)
+                    acc1.connect_to(maxpool.neurons[0], self.weight_e/n_inputs)
+                    acc1.connect_to(acc1, -self.weight_acc)
+                    acc2.connect_to(maxpool.neurons[1], self.weight_e/n_inputs)
+                    acc2.connect_to(acc2, -self.weight_acc)
+                    maxpool.neurons[0].connect_to(acc2, self.weight_acc)
+                    maxpool.neurons += [acc1, acc2]
                 self.blocks += [maxpool]
-                self.neurons += maxpool.output_neurons()
 
 
 class MonitorLayer(Layer):
