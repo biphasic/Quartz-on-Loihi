@@ -17,6 +17,7 @@ class Network:
         self.data = {}
         self.layers = layers
         self.probes = []
+        self.layout_complete = False
         for i in range(1, len(layers)):
             layers[i].connect_from(layers[i-1])
         
@@ -74,22 +75,21 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         core_id = 0
-        compartments_on_core = np.zeros((128))
+        self.compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
             if i == 0:
-                max_n_comps = 128
+                max_n_comps = 512
             else:
                 max_n_comps = 512
             self.core_ids[core_id] = i
             for block in layer.blocks:
-                if compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
+                if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
                     core_id += 1
                     self.core_ids[core_id] = i
                 block.core_id = core_id
-                compartments_on_core[core_id] += len(block.neurons)
+                self.compartments_on_core[core_id] += len(block.neurons)
             core_id += 1
-        #print(self.core_ids)
-        #print(compartments_on_core)
+        self.layout_complete = True
         
     def create_compartments(self, vth_mant):
         net = nx.NxNet()
@@ -125,26 +125,28 @@ class Network:
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
             if l == len(self.layers)-1: break
+#             if isinstance(target.parent_layer, quartz.layers.Conv2d):
+#                 pass
+#                 and isinstance(block, quartz.blocks.ReLCo)
+#                         and isinstance(target, quartz.blocks.ReLCo) and target not block:
+#                             conv_connection = connection
+                
+                
             for block in layer.blocks:
                 source_block = block.loihi_group
                 for target in block.get_connected_blocks():
                     target_block = target.loihi_group
                     weights, delays, mask = block.get_connection_matrices_to(target)
-                    if layer.weight_acc > 255 and layer.weight_e > 255:
-                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent+1, signMode=2),
-                                           nx.ConnectionPrototype(weightExponent=layer.weight_exponent+1, signMode=3),]
-                        weights /= 2
-                    else:
-                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                           nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
+                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
                     weights = weights.round()
-                    source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
-                                         weight=weights, delay=delays, connectionMask=mask)
+                    connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                                      weight=weights, delay=delays, connectionMask=mask)
                     if block == target and isinstance(block, quartz.blocks.ConstantDelay) and len(block.neurons) == 2:
                         key_delay = block.neurons[0].synapses["pre"][0].delay # connect a second time because edge case
-                        delays = np.array([[0, 0],[key_delay, 0]]) # of two synapses to the same neuron with diff delays
+                        delays = np.array([[0, 0],[key_delay, 0]]) # of two synapses to the same neuron with diff. delays
                         source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                          weight=weights, delay=delays, connectionMask=mask)
         return net
@@ -179,6 +181,11 @@ class Network:
         run_time = len(self.layers)*t_max
         board.run(run_time, partition=partition)
         board.disconnect()        
+
+    def print_core_layout(self):
+        if not self.layout_complete: self.check_layout()
+        print(self.core_ids)
+        print(self.compartments_on_core)
 
     def __repr__(self):
         print("name     \tn_comp \tn_param n_conn")
