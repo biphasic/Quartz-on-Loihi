@@ -69,7 +69,7 @@ class InputLayer(Layer):
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}-".format(channel,height,width), 
+                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}:".format(channel,height,width), 
                                                       type=Block.output, monitor=monitor, parent_layer=self)
                     self.blocks.append(splitter)
 
@@ -93,7 +93,7 @@ class Dense(Layer):
         assert len(input_blocks) <= self.weight_e
         n_inputs = len(input_blocks) if biases is None else len(input_blocks) + 1
         for i in range(self.output_dims):
-            relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}-".format(self.layer_n, i), 
+            relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
                                         monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
@@ -103,9 +103,9 @@ class Dense(Layer):
                 block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
             self.blocks += [relco]
             if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{0:2.0f}-".format(i), 
+                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{0:2.0f}:".format(i), 
                                                    type=Block.hidden, monitor=False, parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}-".format(i), 
+                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(i), 
                                                   type=Block.hidden, monitor=False, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
                 input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
@@ -143,16 +143,16 @@ class Conv2D(Layer):
             patches = [image.extract_patches_2d(indices[input_channel,:,:], (kernel_size)) for input_channel in range(input_channels)]
             patches = np.stack(patches)
             assert np.product(side_lengths) == patches.shape[1]
-            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], name=self.name+"const-n{0:2.0f}-".format(output_channel), 
+            bias = quartz.blocks.ConstantDelay(value=biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
                                                type=Block.hidden, monitor=False, parent_layer=self)
-            splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}-".format(output_channel), 
+            splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                               type=Block.hidden, monitor=False, parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
             input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
             self.blocks += [bias, splitter]
             n_inputs = np.product(self.weights.shape[1:]) + 1
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
-                relco = quartz.blocks.ReLCo(name=self.name+"l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
+                relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                 for input_channel in range(input_channels):
                     block_patch = np.array(input_blocks)[patches[input_channel,i,:,:].flatten()]
                     patch_weights = weights[output_channel,input_channel,:,:].flatten()
@@ -197,7 +197,7 @@ class MaxPool2D(Layer):
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *kernel_size, patches.shape[-1]) # pick only patches that are interesting (stride)
             
             for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
-                maxpool = quartz.blocks.MaxPooling(name="pool-l{0}-c{1:3.0f}-n{2:3.0f}".format(self.layer_n, output_channel, i), parent_layer=self)
+                maxpool = quartz.blocks.MaxPooling(name="pool-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                 block_patch = np.array(input_blocks)[patches[i,:,:,:].flatten()]
                 n_inputs = len(block_patch)
                 for block in block_patch:
