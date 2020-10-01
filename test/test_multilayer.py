@@ -32,7 +32,7 @@ class TestMultiLayer(unittest.TestCase):
         l2 = quartz.layers.FullyConnected(prev_layer=l1, weights=weights2, biases=biases2, split_output=False, **weight_args)
         l3 = quartz.layers.MonitorLayer(prev_layer=l2, **weight_args)
 
-        values = np.random.rand(np.product(dims)//2) / 2
+        values = np.random.rand(np.product(dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_weights1 = (weight_acc*weights1).round()/weight_acc
@@ -82,7 +82,7 @@ class TestMultiLayer(unittest.TestCase):
                                  monitor=False, weight_e=weight_e, weight_acc=weight_acc)
         l3 = quartz.layers.MonitorLayer(prev_layer=l2, weight_e=weight_e, weight_acc=weight_acc)
 
-        values = np.random.rand(np.product(input_dims)//2) / 2
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_values = quantized_values.reshape(*input_dims[:3])
@@ -127,7 +127,7 @@ class TestMultiLayer(unittest.TestCase):
                                     weight_e=weight_e, weight_acc=weight_acc)
         l3 = quartz.layers.MonitorLayer(prev_layer=l2, weight_e=weight_e, weight_acc=weight_acc)
 
-        values = np.arange(np.product(input_dims)//2) / 200
+        values = np.arange(np.product(input_dims)) / 200
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
 
@@ -167,7 +167,7 @@ class TestMultiLayer(unittest.TestCase):
                                          monitor=False, weight_e=weight_e, weight_acc=weight_acc)
         l3 = quartz.layers.MonitorLayer(prev_layer=l2, weight_e=weight_e, weight_acc=weight_acc)
 
-        values = np.random.rand(np.product(input_dims)//2) / 2
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_values = quantized_values.reshape(*input_dims[:3])
@@ -194,28 +194,29 @@ class TestMultiLayer(unittest.TestCase):
 
 
     @parameterized.expand([
-        (( 1,10,10,2), ( 6,1,3,3), 500),
-        (( 1,32,32,2), ( 6,1,5,5), 500),
-        (( 6,14,14,2), (16,6,5,5), 500),
+        (( 1,10,10), ( 6,1,3,3), 250),
+        #(( 1,32,32), ( 6,1,5,5), 250),
+        #(( 6,14,14), (16,6,5,5), 250),
     ])
     def test_conv_maxpool_2d(self, input_dims, weight_dims, weight_e):
         t_max = 2**9
-        run_time = 10*t_max
         weight_acc = 128
+        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
 
-        l0 = quartz.layers.InputLayer(dims=input_dims, monitor=False, weight_e=weight_e, weight_acc=weight_acc)
         weights = (np.random.rand(*weight_dims)-0.5) / 4
         biases = (np.random.rand(weight_dims[0])-0.5) / 2
-        l1 = quartz.layers.Conv2D(prev_layer=l0, weights=weights, biases=biases, split_output=True,
-                                 weight_e=weight_e, weight_acc=weight_acc)
-        l2 = quartz.layers.MaxPool2D(prev_layer=l1, kernel_size=pooling_kernel_size, split_output=False,
-                                    weight_e=weight_e, weight_acc=weight_acc)
-        l3 = quartz.layers.MonitorLayer(prev_layer=l2, weight_e=weight_e, weight_acc=weight_acc)
 
-        values = np.random.rand(np.product(input_dims)//2)
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=input_dims, **model_args),
+            layers.Conv2D(weights=weights, biases=biases, **model_args),
+            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride, **model_args),
+            layers.MonitorLayer(**model_args),
+        ])
+
+        values = np.random.rand(np.product(input_dims))
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc
@@ -229,8 +230,9 @@ class TestMultiLayer(unittest.TestCase):
         model[0].bias = nn.Parameter(torch.tensor(quantized_biases))
         model_output = model(torch.tensor(quantized_values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
 
-        output_values, spike_times = l3.run_on_loihi(run_time, t_max=t_max, input_spike_list=inputs, plot=False)
-        self.assertEqual(len(output_values.items()), len(model_output.flatten()))
+        output_values = loihi_model(inputs, t_max)
+        ipdb.set_trace()
+        self.assertEqual(len(output_values), len(model_output.flatten()))
         output_combinations = list(zip([value[0] for (key, value) in sorted(output_values.items())], model_output.flatten()))
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
@@ -257,7 +259,7 @@ class TestMultiLayer(unittest.TestCase):
                                  weight_e=weight_e, weight_acc=weight_acc)
         l3 = quartz.layers.MonitorLayer(prev_layer=l2, weight_e=weight_e, weight_acc=weight_acc)
 
-        values = np.random.rand(np.product(input_dims)//2)
+        values = np.random.rand(np.product(input_dims))
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc

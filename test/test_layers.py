@@ -17,13 +17,14 @@ class TestLayers(unittest.TestCase):
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=(1,10,10,2)),
-            layers.FullyConnected(weights=weights, biases=biases, split_output=False),
+            layers.Dense(weights=weights, biases=biases, split_output=False),
             layers.MonitorLayer(),
         ])
         self.assertEqual(loihi_model.n_compartments(), 1400)
         self.assertEqual(loihi_model.n_connections(), 32100)
         self.assertEqual(loihi_model.n_parameters(), 10100)
-    
+
+
     @parameterized.expand([
         ((1,10,10,), 10),
         ((1,120,1,), 84),
@@ -47,7 +48,7 @@ class TestLayers(unittest.TestCase):
             layers.MonitorLayer(**model_args),
         ])
 
-        values = np.random.rand(np.product(dim_input)) # np.ones((np.product(dims))) * 0.5
+        values = np.random.rand(np.product(dim_input))
         inputs = quartz.decode_values_into_spike_input(values, t_max)
 
         quantized_values = (values*t_max).round()/t_max

@@ -78,9 +78,9 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
             if i == 0:
-                max_n_comps = 512
+                max_n_comps = 300
             else:
-                max_n_comps = 512
+                max_n_comps = 415
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
@@ -97,7 +97,7 @@ class Network:
         layer_measurements = [nx.ProbeParameter.SPIKE]
         for i, layer in enumerate(self.layers):
             for block in layer.blocks:
-                block_group = net.createCompartmentGroup(size=0)
+                block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
                 for neuron in block.neurons:
@@ -123,24 +123,42 @@ class Network:
 
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
+        normal_connections = 0
+        shared_connections = 0
         for l, layer in enumerate(self.layers):
-            conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                               nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
-            for block in layer.blocks:
-                target_block = block.loihi_group
-                for source in block.get_connected_blocks():
+            connection_dict = {}
+            for target in layer.blocks:
+                target_block = target.loihi_group
+                for source in target.get_connected_blocks():
+                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
                     source_block = source.loihi_group
-                    weights, delays, mask = source.get_connection_matrices_to(block)
+                    weights, delays, mask = source.get_connection_matrices_to(target)
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
                     weights = weights.round()
-                    connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
-                                                      weight=weights, delay=delays, connectionMask=mask)
-                    if block == source and isinstance(block, quartz.blocks.ConstantDelay) and len(block.neurons) == 2:
-                        key_delay = block.neurons[0].synapses["pre"][0].delay # connect a second time because edge case
+                    weight_hash = hash(tuple(weights.flatten()))
+                    hash_key = weight_hash
+                    if False and hash_key in connection_dict.keys() and source.name not in connection_dict[hash_key][::3]\
+                        and target.name not in connection_dict[hash_key][1::3]:
+                        print("creating shared connection between {} and {}".format(source.name, target.name))
+                        source_block.connect(target_block, sharedConnGrp=connection_dict[hash_key][2], synapseSharingOnly=False)
+                        shared_connections += 1
+                    else:
+                        connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                                          weight=weights, delay=delays, connectionMask=mask)
+                        if source.parent_layer.layer_n < layer.layer_n and isinstance(target, quartz.blocks.ReLCo):
+                            if not hash_key in connection_dict.keys():
+                                #print("saving connection between {} and {}".format(source.name, target.name))
+                                connection_dict[hash_key] = [source.name, target.name, connection]
+                        normal_connections += 1
+                    if target == source and isinstance(target, quartz.blocks.ConstantDelay) and len(target.neurons) == 2:
+                        key_delay = target.neurons[0].synapses["pre"][0].delay # connect a second time because edge case
                         delays = np.array([[0, 0],[key_delay, 0]]) # of two synapses to the same neuron with diff. delays
                         source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                          weight=weights, delay=delays, connectionMask=mask)
+#         print("normal connections: " + str(normal_connections))
+#         print("shared connections: " + str(shared_connections))
         return net
 
     def add_input_spikes(self, spike_list, net):
@@ -170,12 +188,12 @@ class Network:
         
     def run_on_loihi(self, board, t_max, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = len(self.layers)*t_max
+        run_time = len(self.layers)*2*t_max
         board.run(run_time, partition=partition)
         board.disconnect()        
 
-    def print_core_layout(self):
-        if not self.layout_complete: self.check_layout()
+    def print_core_layout(self, redo=True):
+        if not self.layout_complete or redo: self.check_layout()
         print(self.core_ids)
         print(self.compartments_on_core)
 
