@@ -198,7 +198,7 @@ class TestMultiLayer(unittest.TestCase):
     @parameterized.expand([
         (( 1,10,10), ( 6,1,3,3), 100),
         (( 1,32,32), ( 6,1,5,5), 251),
-        (( 6,14,14), (8,6,5,5), 251),
+        #(( 6,14,14), (8,6,5,5), 251),
     ])
     def test_conv_maxpool_2d(self, input_dims, weight_dims, weight_e):
         t_max = 2**9
@@ -234,7 +234,7 @@ class TestMultiLayer(unittest.TestCase):
 
         output_values = loihi_model(inputs, t_max)
         self.assertEqual(len(output_values), len(model_output.flatten()))
-        output_combinations = list(zip([value[0] for (key, value) in sorted(output_values.items())], model_output.flatten()))
+        output_combinations = list(zip(output_values, model_output.flatten()))
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
 
