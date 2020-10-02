@@ -1,16 +1,17 @@
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 class LeNet5(nn.Module):
     def __init__(self, n_classes):
         super(LeNet5, self).__init__()
         drop = 0.1
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=6, kernel_size=5, stride=1)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=5, kernel_size=5, stride=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.drop1 = nn.Dropout2d(0.5*drop)
         
-        self.conv2 = nn.Conv2d(in_channels=6, out_channels=8, kernel_size=5, stride=1)
+        self.conv2 = nn.Conv2d(in_channels=5, out_channels=8, kernel_size=5, stride=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
         self.drop2 = nn.Dropout2d(drop)
         
