@@ -59,12 +59,12 @@ class TestMultiLayer(unittest.TestCase):
 
 
     @parameterized.expand([
-        ((1,7,7), (6,1,5,5), (100,6,3,3), 251),
+        ((1,7,7), (6,1,5,5), (100,6,3,3)),
     ])
-    def test_2conv(self, input_dims, conv_weight_dims1, conv_weight_dims2, weight_e):
+    def test_2conv(self, input_dims, conv_weight_dims1, conv_weight_dims2):
         t_max = 2**8
         weight_acc = 128
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
+        
         conv_kernel_size1 = conv_weight_dims1[2:]
         conv_kernel_size2 = conv_weight_dims2[2:]
         conv_out_dim1 = conv_weight_dims1[0]
@@ -76,10 +76,10 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(conv_out_dim2)-0.5) / 2
         
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.Conv2D(weights=weights1, biases=biases1, **model_args),
-            layers.Conv2D(weights=weights2, biases=biases2, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.Conv2D(weights=weights1, biases=biases1),
+            layers.Conv2D(weights=weights2, biases=biases2),
+            layers.MonitorLayer(),
         ])
         
         values = np.random.rand(np.product(input_dims)) / 2
@@ -116,15 +116,13 @@ class TestMultiLayer(unittest.TestCase):
         t_max = 2**8
         stride1 = kernel_size1[0]
         stride2 = kernel_size2[0]
-        weight_e = 120
         weight_acc = 128
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.MaxPool2D(kernel_size=kernel_size1, **model_args),
-            layers.MaxPool2D(kernel_size=kernel_size2, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.MaxPool2D(kernel_size=kernel_size1),
+            layers.MaxPool2D(kernel_size=kernel_size2),
+            layers.MonitorLayer(),
         ])
 
         values = np.arange(np.product(input_dims)) / 200
@@ -146,15 +144,15 @@ class TestMultiLayer(unittest.TestCase):
 
 
     @parameterized.expand([
-        ((6, 3, 3), (100,6,3,3), 10, 251),
-        ((8, 5, 5), (120,8,5,5), 84, 251),
+        ((6, 3, 3), (100,6,3,3), 10),
+        ((8, 5, 5), (120,8,5,5), 84),
     ])
-    def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim, weight_e):
+    def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
         t_max = 2**8
         weight_acc = 128
         conv_kernel_size = conv_weight_dims[2:]
         conv_out_dim = conv_weight_dims[0]
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
+        
 
         weights1 = (np.random.rand(*conv_weight_dims)-0.5) / 4
         biases1 = (np.random.rand(conv_out_dim)-0.5) / 2
@@ -162,10 +160,10 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(fc_out_dim)-0.5) / 2
         
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.Conv2D(weights=weights1, biases=biases1, **model_args),
-            layers.Dense(weights=weights2, biases=biases2, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.Conv2D(weights=weights1, biases=biases1),
+            layers.Dense(weights=weights2, biases=biases2),
+            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(np.product(input_dims)) / 2
@@ -195,14 +193,14 @@ class TestMultiLayer(unittest.TestCase):
 
 
     @parameterized.expand([
-        (( 1,10,10), ( 6,1,3,3), 100),
-        (( 1,32,32), ( 6,1,5,5), 251),
-        #(( 6,14,14), (8,6,5,5), 251),
+        ((1,10,10), (6,1,3,3)),
+        ((1,32,32), (6,1,5,5)),
+        ((6,14,14), (8,6,5,5)),
     ])
-    def test_conv_maxpool_2d(self, input_dims, weight_dims, weight_e):
+    def test_conv_maxpool_2d(self, input_dims, weight_dims):
         t_max = 2**9
         weight_acc = 128
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
+        
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -211,10 +209,10 @@ class TestMultiLayer(unittest.TestCase):
         biases = (np.random.rand(weight_dims[0])-0.5) / 2
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.Conv2D(weights=weights, biases=biases, **model_args),
-            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.Conv2D(weights=weights, biases=biases),
+            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride),
+            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(np.product(input_dims))
@@ -239,13 +237,13 @@ class TestMultiLayer(unittest.TestCase):
 
 
     @parameterized.expand([
-        (( 1,10,10), ( 6,1,5,5), 251),
-        (( 6,28,28), (8,6,5,5), 251),
+        ((1,10,10), (6,1,5,5)),
+        ((6,28,28), (8,6,5,5)),
     ])
-    def test_maxpool_conv(self, input_dims, weight_dims, weight_e):
+    def test_maxpool_conv(self, input_dims, weight_dims):
         t_max = 2**9
         weight_acc = 128
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
+        
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -254,10 +252,10 @@ class TestMultiLayer(unittest.TestCase):
         biases = (np.random.rand(weight_dims[0])-0.5) / 2
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride, **model_args),
-            layers.Conv2D(weights=weights, biases=biases, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride),
+            layers.Conv2D(weights=weights, biases=biases),
+            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(np.product(input_dims))

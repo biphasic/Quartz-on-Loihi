@@ -32,27 +32,23 @@ class TestLayers(unittest.TestCase):
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**9
-        run_time = 4*t_max
-        weight_e = 500
-        weight_acc = 2**8
-        weight_acc_real = weight_acc / 2
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
 
         np.random.seed(seed=47)
         weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
         biases = (np.random.rand(dim_output) - 0.5) / 3
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=dim_input, **model_args),
-            layers.Dense(weights=weights, biases=biases, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=dim_input),
+            layers.Dense(weights=weights, biases=biases),
+            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(np.product(dim_input))
         inputs = quartz.decode_values_into_spike_input(values, t_max)
 
+        weight_acc = 128
         quantized_values = (values*t_max).round()/t_max
-        quantized_weights = (weight_acc_real*weights).round()/weight_acc_real
+        quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
 
         pt_model = nn.Sequential(
@@ -69,36 +65,28 @@ class TestLayers(unittest.TestCase):
 
 
     @parameterized.expand([
-        #(( 3, 8, 8), (  5, 3,2,2), 251),
-        ((10, 5, 5), (120,10,5,5), 251),
+        (( 3, 8, 8), (  5, 3,2,2)),
+        ((10, 5, 5), (120,10,5,5)),
     ])
-    def test_conv2d(self, input_dims, weight_dims, weight_e):
+    def test_conv2d(self, input_dims, weight_dims):
         t_max = 2**9
-        weight_acc = 2**7
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
 
         kernel_size = weight_dims[2:]
-        weights = (np.random.rand(*weight_dims)-0.5) / 5
+        weights = (np.random.rand(*weight_dims)-0.5) / 4
         biases = (np.random.rand(weight_dims[0])-0.5) / 2
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.Conv2D(weights=weights, biases=biases, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.Conv2D(weights=weights, biases=biases),
+            layers.MonitorLayer(),
         ])
-
-        input0 = quartz.probe(loihi_model.layers[0].blocks[0])
-        hidden0 = quartz.probe(loihi_model.layers[1].blocks[2])
-        hidden1 = quartz.probe(loihi_model.layers[1].blocks[-1])
-        calc_probe = quartz.probe(loihi_model.layers[1].blocks[-1].neurons[0])
-        sync_probe = quartz.probe(loihi_model.layers[1].blocks[-1].neurons[2])
 
         values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
 
         quantized_values = (values*t_max).round()/t_max
         quantized_values = quantized_values.reshape(*input_dims)
-        if weight_acc > 255: weight_acc /= 2
+        weight_acc = 2**7
         quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
 
@@ -123,12 +111,11 @@ class TestLayers(unittest.TestCase):
         t_max = 2**8
         input_dims = (1,10,10)
         kernel_size = [2,2]
-        model_args = {'weight_e':200, 'weight_acc':128}
 
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.MaxPool2D(kernel_size=kernel_size, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.MaxPool2D(kernel_size=kernel_size),
+            layers.MonitorLayer(),
         ])
 
         np.random.seed(seed=45)
