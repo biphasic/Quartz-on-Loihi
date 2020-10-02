@@ -80,7 +80,7 @@ class Network:
             if i == 0:
                 max_n_comps = 300
             else:
-                max_n_comps = 415
+                max_n_comps = 372
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:

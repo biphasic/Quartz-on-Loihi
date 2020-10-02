@@ -17,7 +17,7 @@ class TestLayers(unittest.TestCase):
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=(1,10,10,2)),
-            layers.Dense(weights=weights, biases=biases, split_output=False),
+            layers.Dense(weights=weights, biases=biases),
             layers.MonitorLayer(),
         ])
         self.assertEqual(loihi_model.n_compartments(), 1400)

@@ -99,6 +99,11 @@ class ConstantDelay(Block):
             self.neurons = [input_, output]            
         else:
             pass
+#         for neuron in self.neurons:
+#             neuron.reset_outgoing_connections()
+#         input_ = Neuron(type=Neuron.input, name=self.name+"input", monitor=self.monitor, parent=self)
+#         output = Neuron(type=Neuron.output, name=self.name+"output", monitor=self.monitor, parent=self)
+#         self.neurons = [input_, output]
 
     def layout_delays(self, t_max, numDendriticAccumulators):
         delay = round(self.value * t_max)
@@ -165,7 +170,10 @@ class ReLCo(Block):
 class MaxPooling(Block):
     def __init__(self, name="pool:", type=Block.output, monitor=False, **kwargs):
         super(MaxPooling, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
-        sync = Neuron(type=Neuron.output, name=name + "sync", monitor=monitor, parent=self)
+        sync = Neuron(name=name + "sync", monitor=monitor, parent=self)
+        first = Neuron(type=Neuron.output, name=name + "first", monitor=monitor, parent=self)
         output = Neuron(type=Neuron.output, name=name + "output", monitor=monitor, parent=self)
-        self.neurons = [sync, output]
-
+        self.neurons = [sync, first, output]
+        
+        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        sync.connect_to(first, weight_e)

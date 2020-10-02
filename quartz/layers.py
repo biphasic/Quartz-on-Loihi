@@ -159,8 +159,8 @@ class Conv2D(Layer):
                     assert len(block_patch) == len(patch_weights)
                     for j, block in enumerate(block_patch):
                         weight = patch_weights[j]
-                        delay = 4 if weight > 0 else 0
-                        extra_delay_first = 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
+                        delay = 5 if weight > 0 else 0
+                        extra_delay_first = 0 # 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
                         block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay+self.t_min+extra_delay_first)
                         block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
                         block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
@@ -204,13 +204,13 @@ class MaxPool2D(Layer):
                 for block in block_patch:
                     acc1 = Neuron(name=maxpool.name + "acc1_{}".format(i), loihi_type=Neuron.acc, parent=maxpool)
                     acc2 = Neuron(name=maxpool.name + "acc2_{}".format(i), loihi_type=Neuron.acc, parent=maxpool)
-                    extra_delay_first = 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
+                    extra_delay_first = 0 # 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
                     block.first().connect_to(acc1, self.weight_acc, extra_delay_first)
                     block.second().connect_to(acc2, self.weight_acc)
                     acc1.connect_to(acc2, -self.weight_acc)
                     acc1.connect_to(maxpool.neurons[0], self.weight_e/n_inputs)
                     acc1.connect_to(acc1, -self.weight_acc)
-                    acc2.connect_to(maxpool.neurons[1], self.weight_e/n_inputs)
+                    acc2.connect_to(maxpool.neurons[2], self.weight_e/n_inputs)
                     acc2.connect_to(acc2, -self.weight_acc)
                     maxpool.neurons[0].connect_to(acc2, self.weight_acc)
                     maxpool.neurons += [acc1, acc2]
@@ -231,6 +231,6 @@ class MonitorLayer(Layer):
             output_neuron = Neuron(name=block.name + "-monitor-{0:3.0f}".format(i), type=Block.input, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
-            extra_delay_first = 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
+            extra_delay_first = 0 # 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
             block.first().connect_to(output_neuron, self.weight_e, extra_delay_first)
             block.second().connect_to(output_neuron, self.weight_e)
