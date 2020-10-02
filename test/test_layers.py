@@ -93,11 +93,12 @@ class TestLayers(unittest.TestCase):
         model = nn.Sequential(nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=kernel_size), nn.ReLU())
         model[0].weight = torch.nn.Parameter(torch.tensor(quantized_weights))
         model[0].bias = torch.nn.Parameter(torch.tensor(quantized_biases))
-        model_output = model(torch.tensor(values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
-        output_values = loihi_model(inputs, t_max)
+        model_output = model(torch.tensor(quantized_values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
+        loihi_output = loihi_model(inputs, t_max)
         
-        self.assertEqual(len(output_values), len(model_output.flatten()))
-        output_combinations = list(zip(output_values, model_output.flatten()))
+        self.assertEqual(len(loihi_output), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output, model_output.flatten()))
+        #print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
@@ -125,9 +126,9 @@ class TestLayers(unittest.TestCase):
 
         model = nn.Sequential(nn.MaxPool2d(kernel_size=kernel_size, stride=kernel_size[0]), nn.ReLU())
         model_output = model(torch.tensor(quantized_values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
-        output_values = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs, t_max)
 
-        self.assertEqual(len(output_values), len(model_output.flatten()))
-        output_combinations = list(zip(output_values, model_output.flatten()))
+        self.assertEqual(len(loihi_output), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output, model_output.flatten()))
         for (out, ideal) in output_combinations:
             self.assertEqual(out, ideal)

@@ -94,6 +94,7 @@ class Dense(Layer):
             self.weight_e += 1
             n_inputs += 1
             assert weights.shape[0] == biases.shape[0]
+        if self.weight_e < 30: self.weight_e *= 8
         for i in range(self.output_dims):
             relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
                                         monitor=self.monitor, parent_layer=self)
@@ -137,6 +138,7 @@ class Conv2D(Layer):
         if biases is not None: 
             self.weight_e += 1
             n_inputs += 1
+        if self.weight_e < 40: self.weight_e *= 4
         assert self.weight_e <= 255
         input_blocks = prev_layer.output_blocks()
         input_channels = weights.shape[1]
@@ -190,7 +192,7 @@ class MaxPool2D(Layer):
         kernel_size = self.kernel_size
         if self.stride==None: self.stride = kernel_size[0]
         input_blocks = prev_layer.output_blocks()
-        self.weight_e = len(input_blocks)
+        self.weight_e = np.product(kernel_size) * 10
         self.output_dims = list(prev_layer.output_dims)
         self.output_dims[1] = int(self.output_dims[1]/kernel_size[0])
         self.output_dims[2] = int(self.output_dims[2]/kernel_size[1])

@@ -214,7 +214,7 @@ class TestMultiLayer(unittest.TestCase):
             layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride),
             layers.MonitorLayer(),
         ])
-
+        
         values = np.random.rand(np.product(input_dims))
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
