@@ -86,19 +86,21 @@ class Dense(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
-        if biases is not None: assert weights.shape[0] == biases.shape[0]
-
         input_blocks = prev_layer.output_blocks()
         assert weights.shape[1] == len(input_blocks)
-        assert len(input_blocks) <= self.weight_e
-        n_inputs = len(input_blocks) if biases is None else len(input_blocks) + 1
+        n_inputs = len(input_blocks)
+        self.weight_e = len(input_blocks)
+        if biases is not None: 
+            self.weight_e += 1
+            n_inputs += 1
+            assert weights.shape[0] == biases.shape[0]
         for i in range(self.output_dims):
             relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
                                         monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
                 delay = 5 if weight > 0 else 0
-                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay)
+                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay + self.t_min)
                 block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
                 block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
             self.blocks += [relco]
@@ -130,7 +132,12 @@ class Conv2D(Layer):
         weights, biases = self.weights, self.biases
         assert weights.shape[1] == prev_layer.output_dims[0]
         assert weights.shape[0] == biases.shape[0]
-        assert np.product(weights.shape[1:]) <= self.weight_e
+        n_inputs = np.product(self.weights.shape[1:])
+        self.weight_e = np.product(self.weights.shape[1:])
+        if biases is not None: 
+            self.weight_e += 1
+            n_inputs += 1
+        assert self.weight_e <= 255
         input_blocks = prev_layer.output_blocks()
         input_channels = weights.shape[1]
         output_channels = weights.shape[0]
@@ -150,7 +157,6 @@ class Conv2D(Layer):
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
             input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
             self.blocks += [bias, splitter]
-            n_inputs = np.product(self.weights.shape[1:]) + 1
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
                 relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                 for input_channel in range(input_channels):
@@ -184,6 +190,7 @@ class MaxPool2D(Layer):
         kernel_size = self.kernel_size
         if self.stride==None: self.stride = kernel_size[0]
         input_blocks = prev_layer.output_blocks()
+        self.weight_e = len(input_blocks)
         self.output_dims = list(prev_layer.output_dims)
         self.output_dims[1] = int(self.output_dims[1]/kernel_size[0])
         self.output_dims[2] = int(self.output_dims[2]/kernel_size[1])

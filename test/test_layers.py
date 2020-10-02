@@ -69,7 +69,7 @@ class TestLayers(unittest.TestCase):
 
 
     @parameterized.expand([
-        (( 3, 8, 8), (  5, 3,2,2), 251),
+        #(( 3, 8, 8), (  5, 3,2,2), 251),
         ((10, 5, 5), (120,10,5,5), 251),
     ])
     def test_conv2d(self, input_dims, weight_dims, weight_e):
@@ -111,7 +111,7 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(len(output_values), len(model_output.flatten()))
         output_combinations = list(zip(output_values, model_output.flatten()))
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
     @parameterized.expand([

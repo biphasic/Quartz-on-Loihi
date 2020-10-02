@@ -12,29 +12,28 @@ import collections
 
 class TestMultiLayer(unittest.TestCase):
     @parameterized.expand([
-        ((1,10,1,), 10, 10),
+        #((1,10,1,), 10, 10),
         ((1,120,1,), 84, 10),
     ])
     def test_2fc(self, input_dims, l1_output_dim, l2_output_dim):
         t_max = 2**9
-        weight_e = 251
-        weight_acc = 128
-        model_args = {'weight_e':weight_e, 'weight_acc':weight_acc}
 
+        np.random.seed(seed=48)
         weights1 = (np.random.rand(l1_output_dim, np.product(input_dims)) - 0.5) / 2
         biases1 = (np.random.rand(l1_output_dim) - 0.5) / 2
         weights2 = (np.random.rand(l2_output_dim, l1_output_dim) - 0.5) / 2
         biases2 = (np.random.rand(l2_output_dim) - 0.5) / 2
         
         loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims, **model_args),
-            layers.Dense(weights=weights1, biases=biases1, **model_args),
-            layers.Dense(weights=weights2, biases=biases2, **model_args),
-            layers.MonitorLayer(**model_args),
+            layers.InputLayer(dims=input_dims),
+            layers.Dense(weights=weights1, biases=biases1),
+            layers.Dense(weights=weights2, biases=biases2),
+            layers.MonitorLayer(),
         ])
         
-        values = np.random.rand(np.product(dims)) / 2
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
+        weight_acc = 128
         quantized_values = (values*t_max).round()/t_max
         quantized_weights1 = (weight_acc*weights1).round()/weight_acc
         quantized_weights2 = (weight_acc*weights2).round()/weight_acc
@@ -54,9 +53,9 @@ class TestMultiLayer(unittest.TestCase):
         output_values = loihi_model(inputs, t_max)
         self.assertEqual(len(output_values), len(model_output.flatten()))
         combinations = list(zip(output_values, model_output.flatten()))
-        print(combinations)
+        #print(combinations)
         for (out, ideal) in combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
     @parameterized.expand([
@@ -192,7 +191,7 @@ class TestMultiLayer(unittest.TestCase):
         self.assertEqual(len(output_values), len(model_output.flatten()))
         output_combinations = list(zip(output_values, model_output.flatten()))
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
     @parameterized.expand([
@@ -236,7 +235,7 @@ class TestMultiLayer(unittest.TestCase):
         self.assertEqual(len(output_values), len(model_output.flatten()))
         output_combinations = list(zip(output_values, model_output.flatten()))
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
     @parameterized.expand([
@@ -279,4 +278,4 @@ class TestMultiLayer(unittest.TestCase):
         self.assertEqual(len(output_values), len(model_output.flatten()))
         output_combinations = list(zip(output_values, model_output.flatten()))
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
