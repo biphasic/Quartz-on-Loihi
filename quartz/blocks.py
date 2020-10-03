@@ -5,9 +5,9 @@ import ipdb
  
 
 class Block:
-    input, hidden, output = range(3)
+    input, hidden, output, trigger = range(4)
     
-    def __init__(self, name, type, monitor, parent_layer):
+    def __init__(self, name, parent_layer, type=hidden, monitor=False):
         self.name = name
         self.type = type
         self.monitor = monitor
@@ -28,7 +28,11 @@ class Block:
 
     def first(self): return self.output_neurons()[0]
 
-    def second(self): return self.output_neurons()[1]
+    def second(self):
+        if len(self.output_neurons()) < 2:
+            return self.output_neurons()[0]
+        else: 
+            return self.output_neurons()[1]
 
     def print_connections(self, maximum=10e7):
         for i, neuron in enumerate(self.neurons):
@@ -82,11 +86,11 @@ class Block:
 
 
 class ConstantDelay(Block):
-    def __init__(self, value, name="bias:", type=Block.hidden, monitor=False, **kwargs):
+    def __init__(self, value, name="bias:", type=Block.hidden, **kwargs):
         self.value = abs(value)
-        super(ConstantDelay, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
-        input_ = Neuron(type=Neuron.input, name=self.name+"input", monitor=self.monitor, parent=self)
-        output = Neuron(type=Neuron.output, name=self.name+"output", monitor=self.monitor, parent=self)
+        super(ConstantDelay, self).__init__(name=name, type=type, **kwargs)
+        input_ = Neuron(type=Neuron.input, name=self.name+"input", parent=self)
+        output = Neuron(type=Neuron.output, name=self.name+"output", parent=self)
         self.neurons = [input_, output]            
         self.reset()
 
@@ -101,8 +105,8 @@ class ConstantDelay(Block):
             pass
 #         for neuron in self.neurons:
 #             neuron.reset_outgoing_connections()
-#         input_ = Neuron(type=Neuron.input, name=self.name+"input", monitor=self.monitor, parent=self)
-#         output = Neuron(type=Neuron.output, name=self.name+"output", monitor=self.monitor, parent=self)
+#         input_ = Neuron(type=Neuron.input, name=self.name+"input", parent=self)
+#         output = Neuron(type=Neuron.output, name=self.name+"output", parent=self)
 #         self.neurons = [input_, output]
 
     def layout_delays(self, t_max, numDendriticAccumulators):
@@ -134,11 +138,11 @@ class ConstantDelay(Block):
 
 
 class Splitter(Block):
-    def __init__(self, name="split:", type=Block.hidden, monitor=False, **kwargs):
-        super(Splitter, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
-        input_ = Neuron(type=Neuron.input, name=name + "input", monitor=monitor, parent=self)
-        first = Neuron(type=Neuron.output, name=name + "1st", monitor=monitor, parent=self)
-        last = Neuron(type=Neuron.output, name=name + "2nd", monitor=monitor, parent=self)
+    def __init__(self, name="split:", type=Block.hidden, **kwargs):
+        super(Splitter, self).__init__(name=name, type=type, **kwargs)
+        input_ = Neuron(type=Neuron.input, name=name + "input", parent=self)
+        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
+        last = Neuron(type=Neuron.output, name=name + "2nd", parent=self)
         self.neurons = [input_, first, last]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         input_.connect_to(first, weight_e)
@@ -147,13 +151,13 @@ class Splitter(Block):
 
 
 class ReLCo(Block):
-    def __init__(self, name="relco:", type=Block.output, monitor=False, **kwargs):
-        super(ReLCo, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
-        calc = Neuron(name=name + "calc", monitor=monitor, loihi_type=Neuron.acc, type=Neuron.input, parent=self)
-        ref = Neuron(name=name + "ref", monitor=monitor, loihi_type=Neuron.acc, parent=self)
-        sync = Neuron(name=name + "sync", monitor=monitor, type=Neuron.input, parent=self)
-        first = Neuron(name=name + "first", monitor=monitor, type=Neuron.output, parent=self)
-        second = Neuron(name=name + "second", monitor=monitor, type=Neuron.output, parent=self)
+    def __init__(self, name="relco:", type=Block.output, **kwargs):
+        super(ReLCo, self).__init__(name=name, type=type, **kwargs)
+        calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
+        ref = Neuron(name=name + "ref", loihi_type=Neuron.acc, parent=self)
+        sync = Neuron(name=name + "sync", type=Neuron.input, parent=self)
+        first = Neuron(name=name + "first", type=Neuron.output, parent=self)
+        second = Neuron(name=name + "second", type=Neuron.output, parent=self)
         self.neurons = [calc, ref, sync, first, second]
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
@@ -168,12 +172,26 @@ class ReLCo(Block):
 
 
 class MaxPooling(Block):
-    def __init__(self, name="pool:", type=Block.output, monitor=False, **kwargs):
-        super(MaxPooling, self).__init__(name=name, type=type, monitor=monitor, **kwargs)
-        sync = Neuron(name=name + "sync", monitor=monitor, parent=self)
-        first = Neuron(type=Neuron.output, name=name + "first", monitor=monitor, parent=self)
-        output = Neuron(type=Neuron.output, name=name + "output", monitor=monitor, parent=self)
+    def __init__(self, name="pool:", type=Block.output, **kwargs):
+        super(MaxPooling, self).__init__(name=name, type=type, **kwargs)
+        sync = Neuron(name=name + "sync", parent=self)
+        first = Neuron(type=Neuron.output, name=name + "first", parent=self)
+        output = Neuron(type=Neuron.output, name=name + "output", parent=self)
         self.neurons = [sync, first, output]
         
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         sync.connect_to(first, weight_e)
+
+
+class Trigger(Block):
+    def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
+        super(Trigger, self).__init__(name=name, type=type, **kwargs)
+        delay_neuron = Neuron(name=self.name + "acc", loihi_type=Neuron.acc, parent=self)
+        self.neurons += [delay_neuron]
+        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        delay_neuron.connect_to(delay_neuron, -weight_acc)
+        
+        for t in range(number):
+            trigger_neuron = Neuron(name=self.name + "neuron", type=Neuron.output, parent=self)
+            delay_neuron.connect_to(trigger_neuron, weight_e)
+            self.neurons += [trigger_neuron]
