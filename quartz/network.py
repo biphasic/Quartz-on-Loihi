@@ -137,6 +137,8 @@ class Network:
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
                     weights = weights.round()
+                    weights[weights>255] = 255
+                    weights[weights<-255] = -255
                     weight_hash = hash(tuple(weights.flatten()))
                     hash_key = weight_hash
                     if False and hash_key in connection_dict.keys() and source.name not in connection_dict[hash_key][::3]\
