@@ -165,12 +165,8 @@ class Network:
 
     def add_input_spikes(self, spike_list, net):
         input_layer = self.layers[0]
-        if input_layer.weight_e > 255:
-            weight_e = math.ceil(input_layer.weight_e / 2)
-            weight_exponent = input_layer.weight_exponent + 1
-        else:
-            weight_e = input_layer.weight_e
-            weight_exponent = input_layer.weight_exponent
+        weight_e = input_layer.weight_e
+        weight_exponent = input_layer.weight_exponent
         connection_prototype=nx.ConnectionPrototype(weightExponent=weight_exponent)
         n_inputs = 0
         for i, input_spikes in enumerate(spike_list):
@@ -181,7 +177,12 @@ class Network:
                                           connectionMask=np.array([[1],[0],[0]]))
             input_spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=input_spikes)
             n_inputs += 1
-        assert len(input_layer.blocks) == n_inputs
+        assert len(input_layer.blocks) == n_inputs + 1
+        #ipdb.set_trace()
+        input_spike_generator.connect(input_layer.blocks[-1].loihi_group, prototype=connection_prototype, 
+                                      weight=np.array([[weight_e//2],[0]]),
+                                          connectionMask=np.array([[1],[0]]))
+        #weight=np.array([weight_e]))
         return net
 
     def compile_net(self, net):
