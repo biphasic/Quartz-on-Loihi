@@ -26,13 +26,15 @@ class Block:
 
     def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
 
-    def first(self): return self.output_neurons()[0]
+    def first(self): 
+        neuron = self.output_neurons()[0]
+        assert "1st" in neuron.name
+        return neuron
 
     def second(self):
-        if len(self.output_neurons()) < 2:
-            return self.output_neurons()[0]
-        else: 
-            return self.output_neurons()[1]
+        neuron = self.output_neurons()[1]
+        assert "2nd" in neuron.name
+        return neuron
 
     def print_connections(self, maximum=10e7):
         for i, neuron in enumerate(self.neurons):
@@ -182,7 +184,23 @@ class MaxPooling(Block):
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         sync.connect_to(first, weight_e)
 
+        
+class ConvMax(Block):
+    def __init__(self, conv_neurons, name="convmax:", type=Block.output, **kwargs):
+        super(ConvMax, self).__init__(name=name, type=type, **kwargs)
+        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
+        second = Neuron(type=Neuron.output, name=name + "2nd", loihi_type=Neuron.acc, parent=self)
+        self.neurons = [first, second]
+        self.neurons += conv_neurons
 
+        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        first.connect_to(first, -weight_e)
+        second.connect_to(second, -weight_acc)
+        for neuron in conv_neurons:
+            neuron.connect_to(first, weight_e, t_min)
+            first.connect_to(first, -weight_acc)
+
+        
 class Trigger(Block):
     def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
