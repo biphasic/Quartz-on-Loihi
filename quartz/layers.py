@@ -149,7 +149,6 @@ class ConvPool2D(Layer):
         
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(number=output_channels, name=self.name+"trigger:", parent_layer=self)
-        #ipdb.set_trace()
         prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_e)
         self.blocks += [trigger_block]
         
@@ -165,7 +164,7 @@ class ConvPool2D(Layer):
             splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                               type=Block.hidden, parent_layer=self)
             bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-            prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
+            input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
             self.blocks += [bias, splitter]
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
                 calc_neuron = Neuron(name=self.name + "calc-n{0:3.0f}".format(i), loihi_type=Neuron.acc)
@@ -186,7 +185,6 @@ class ConvPool2D(Layer):
                 splitter.second().connect_to(calc_neuron, -bias_sign*self.weight_acc)
 
         indices = np.arange(len(conv_neurons)).reshape(output_channels, *side_lengths)
-        #ipdb.set_trace()
         for output_channel in range(output_channels): # no of output channels is most outer loop
             patches = image.extract_patches_2d(indices[output_channel,:,:], (self.pool_kernel_size)) # extract patches with stride 1
             patches = np.stack(patches)
@@ -200,7 +198,6 @@ class ConvPool2D(Layer):
                                                 type=Block.output, parent_layer=self)
                 trigger_block.output_neurons()[output_channel].connect_to(maxpool.second(), self.weight_e)
                 self.blocks += [maxpool]
-                #ipdb.set_trace()
 
 
 class Conv2D(Layer):
@@ -251,7 +248,7 @@ class Conv2D(Layer):
                         weight = patch_weights[j]
                         delay = 4 if weight > 0 else 0
                         extra_delay_first = 0 # 1 if isinstance(self.prev_layer, quartz.layers.MaxPool2D) else 0
-                        extra_second_delay = 2 if isinstance(block, quartz.layers.ConvPool2D) else 0
+                        extra_second_delay = 2 if isinstance(block, quartz.blocks.ConvMax) else 0
                         block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay+self.t_min+extra_delay_first)
                         block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
                         block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
@@ -287,8 +284,8 @@ class MaxPool2D(Layer):
             patches = np.stack(patches)
             patches_side_length = int(np.sqrt(patches.shape[0]))
             patches = patches.reshape(patches_side_length, patches_side_length, *kernel_size, -1) # align patches as a rectangle
-            patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *kernel_size, patches.shape[-1]) # pick only patches that are interesting (stride)
-            
+            # pick only patches that are interesting (stride)
+            patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *kernel_size, patches.shape[-1])
             for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
                 maxpool = quartz.blocks.MaxPooling(name="pool-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                 block_patch = np.array(input_blocks)[patches[i,:,:,:].flatten()]
@@ -318,13 +315,12 @@ class MonitorLayer(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.prev_layer = prev_layer
         self.name = "l{}-{}".format(self.layer_n, self.name)
-        #ipdb.set_trace()
         
         for i, block in enumerate(prev_layer.output_blocks()):
             monitor = quartz.blocks.Block(name=block.name+"-monitor", type=Block.output, monitor=self.monitor, parent_layer=self)
             output_neuron = Neuron(name=block.name + "-monitor-{0:3.0f}".format(i), type=Block.input, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
-            extra_second_delay = 2 if isinstance(block, quartz.layers.ConvPool2D) else 0
+            extra_second_delay = 2 if isinstance(block, quartz.blocks.ConvMax) else 0
             block.first().connect_to(output_neuron, self.weight_e)
             block.second().connect_to(output_neuron, self.weight_e, extra_second_delay)

@@ -26,7 +26,7 @@ class Network:
         self.set_probe_t_max(t_max)
         board = self.build_model(input_spike_list, t_max)
         self.run_on_loihi(board, t_max)
-        #print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
+        print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
         return np.array([value[0] for (key, value) in sorted(output_probe.output()[0].items())])
     
     def set_probe_t_max(self, t_max):
@@ -78,9 +78,9 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
             if i == 0:
-                max_n_comps = 300
+                max_n_comps = 200
             else:
-                max_n_comps = 372
+                max_n_comps = 200
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
