@@ -158,8 +158,8 @@ class ReLCo(Block):
         calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
         ref = Neuron(name=name + "ref", loihi_type=Neuron.acc, parent=self)
         sync = Neuron(name=name + "sync", type=Neuron.input, parent=self)
-        first = Neuron(name=name + "first", type=Neuron.output, parent=self)
-        second = Neuron(name=name + "second", type=Neuron.output, parent=self)
+        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
+        second = Neuron(name=name + "2nd", type=Neuron.output, parent=self)
         self.neurons = [calc, ref, sync, first, second]
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
@@ -177,8 +177,8 @@ class MaxPooling(Block):
     def __init__(self, name="pool:", type=Block.output, **kwargs):
         super(MaxPooling, self).__init__(name=name, type=type, **kwargs)
         sync = Neuron(name=name + "sync", parent=self)
-        first = Neuron(type=Neuron.output, name=name + "first", parent=self)
-        output = Neuron(type=Neuron.output, name=name + "output", parent=self)
+        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
+        output = Neuron(type=Neuron.output, name=name + "2nd", parent=self)
         self.neurons = [sync, first, output]
         
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
@@ -196,9 +196,11 @@ class ConvMax(Block):
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         first.connect_to(first, -weight_e)
         second.connect_to(second, -weight_acc)
+        second.connect_to(first, weight_e)
         for neuron in conv_neurons:
             neuron.connect_to(first, weight_e, t_min)
-            first.connect_to(first, -weight_acc)
+            first.connect_to(neuron, -weight_acc)
+            neuron.parent_block = self
 
         
 class Trigger(Block):
