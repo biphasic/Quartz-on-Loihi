@@ -141,12 +141,7 @@ class ConvPool2D(Layer):
         output_channels, input_channels, *conv_kernel_size = self.weights.shape
         side_lengths = (int((prev_layer.output_dims[1] - conv_kernel_size[0]) / self.conv_stride + 1),\
                         int((prev_layer.output_dims[2] - conv_kernel_size[1]) / self.conv_stride + 1))
-        
-        self.output_dims = [output_channels, *side_lengths]
-        if self.pool_stride==None: self.pool_stride = self.pool_kernel_size[0]
-        self.output_dims[1] = int(self.output_dims[1]/self.pool_kernel_size[0])
-        self.output_dims[2] = int(self.output_dims[2]/self.pool_kernel_size[1])
-        
+    
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(number=output_channels, name=self.name+"trigger:", parent_layer=self)
         prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_e)
@@ -177,14 +172,20 @@ class ConvPool2D(Layer):
                     assert len(block_patch) == len(patch_weights)
                     for j, block in enumerate(block_patch):
                         weight = patch_weights[j]
-                        delay = 5 if weight > 0 else 0
+                        delay = 4 if weight > 0 else 0
+                        extra_delay_second = 2 if isinstance(block, quartz.blocks.ConvMax) else 0
                         block.first().connect_to(calc_neuron, weight*self.weight_acc, delay+self.t_min)
-                        block.second().connect_to(calc_neuron, -weight*self.weight_acc, delay)
+                        block.second().connect_to(calc_neuron, -weight*self.weight_acc, delay+extra_delay_second)
                 if self.biases is not None:
                     bias_sign = 1 if self.biases[output_channel] >= 0 else -1
                     splitter.first().connect_to(calc_neuron, bias_sign*self.weight_acc)
                     splitter.second().connect_to(calc_neuron, -bias_sign*self.weight_acc)
 
+        self.output_dims = [output_channels, *side_lengths]
+        if self.pool_stride==None: self.pool_stride = self.pool_kernel_size[0]
+        self.output_dims[1] = int(self.output_dims[1]/self.pool_kernel_size[0])
+        self.output_dims[2] = int(self.output_dims[2]/self.pool_kernel_size[1])
+        
         indices = np.arange(len(conv_neurons)).reshape(output_channels, *side_lengths)
         for output_channel in range(output_channels): # no of output channels is most outer loop
             patches = image.extract_patches_2d(indices[output_channel,:,:], (self.pool_kernel_size)) # extract patches with stride 1
