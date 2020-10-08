@@ -178,11 +178,9 @@ class Network:
             input_spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=input_spikes)
             n_inputs += 1
         assert len(input_layer.blocks) == n_inputs + 1
-        #ipdb.set_trace()
         input_spike_generator.connect(input_layer.blocks[-1].loihi_group, prototype=connection_prototype, 
                                       weight=np.array([[input_layer.weight_acc//2],[0],[0]]),
                                           connectionMask=np.array([[1],[0],[0]]))
-        #weight=np.array([weight_e]))
         return net
 
     def compile_net(self, net):
