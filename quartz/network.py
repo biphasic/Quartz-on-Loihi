@@ -180,8 +180,8 @@ class Network:
         assert len(input_layer.blocks) == n_inputs + 1
         #ipdb.set_trace()
         input_spike_generator.connect(input_layer.blocks[-1].loihi_group, prototype=connection_prototype, 
-                                      weight=np.array([[weight_e//2],[0]]),
-                                          connectionMask=np.array([[1],[0]]))
+                                      weight=np.array([[weight_e//2],[0],[0]]),
+                                          connectionMask=np.array([[1],[0],[0]]))
         #weight=np.array([weight_e]))
         return net
 
@@ -191,7 +191,7 @@ class Network:
         
     def run_on_loihi(self, board, t_max, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = len(self.layers)*2*t_max
+        run_time = int(len(self.layers)*2.5*t_max)
         board.run(run_time, partition=partition)
         board.disconnect()        
 

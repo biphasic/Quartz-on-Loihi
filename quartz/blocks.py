@@ -198,7 +198,7 @@ class ConvMax(Block):
         second.connect_to(second, -weight_acc)
         second.connect_to(first, weight_e)
         for neuron in conv_neurons:
-            neuron.connect_to(first, weight_e, t_min)
+            neuron.connect_to(first, weight_e)
             first.connect_to(neuron, -weight_acc)
             neuron.parent_block = self
 
@@ -206,9 +206,12 @@ class ConvMax(Block):
 class Trigger(Block):
     def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
-        delay_neuron = Neuron(name=self.name + "acc", loihi_type=Neuron.acc, parent=self)
-        self.neurons += [delay_neuron]
+        start_neuron = Neuron(name=self.name + "acc1", loihi_type=Neuron.acc, parent=self)
+        delay_neuron = Neuron(name=self.name + "acc2", loihi_type=Neuron.acc, parent=self)
+        self.neurons += [start_neuron, delay_neuron]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        start_neuron.connect_to(delay_neuron, weight_acc)
+        start_neuron.connect_to(start_neuron, -weight_acc)
         delay_neuron.connect_to(delay_neuron, -weight_acc)
         
         for t in range(number):
