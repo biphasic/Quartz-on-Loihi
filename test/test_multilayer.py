@@ -215,7 +215,7 @@ class TestMultiLayer(unittest.TestCase):
             layers.MonitorLayer(),
         ])
         
-        values = np.random.rand(np.product(input_dims))
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc
@@ -258,7 +258,7 @@ class TestMultiLayer(unittest.TestCase):
             layers.MonitorLayer(),
         ])
 
-        values = np.random.rand(np.product(input_dims))
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc
@@ -302,7 +302,7 @@ class TestMultiLayer(unittest.TestCase):
             layers.MonitorLayer(),
         ])
 
-        values = np.random.rand(np.product(input_dims))
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
 
         model = nn.Sequential(
@@ -347,7 +347,7 @@ class TestMultiLayer(unittest.TestCase):
             layers.MonitorLayer(),
         ])
 
-        values = np.random.rand(np.product(input_dims))
+        values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
 
         model = nn.Sequential(
