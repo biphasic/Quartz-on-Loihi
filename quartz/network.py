@@ -37,16 +37,17 @@ class Network:
 
     def build_model(self, input_spike_list, t_max):
         net = nx.NxNet()
-        vth_mant=2**16
         assert np.log2(t_max).is_integer()
         # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
-        # assign weight exponents depending on t_max
-        self.check_weight_exponents(t_max, vth_mant)
+        # set weight exponents
+        self.set_weight_exponents(0)
+        # assign vth_mants according to t_max
+        self.check_vth_mants(t_max)
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
-        net = self.create_compartments(vth_mant)
+        net = self.create_compartments()
         # connect loihi compartments
         net = self.connect_blocks(net)
         # add inputs
@@ -68,9 +69,13 @@ class Network:
         for layer in self.layers:
             layer.check_block_delays(t_max, numDendriticAccumulators)
 
-    def check_weight_exponents(self, t_max, vth_mant):
+    def check_vth_mants(self, t_max):
         for layer in self.layers:
-            layer.weight_exponent = np.log2(vth_mant/(t_max*layer.weight_acc))
+            layer.vth_mant = 2**(layer.weight_exponent + np.log2(t_max*layer.weight_acc))
+
+    def set_weight_exponents(self, expo):
+        for layer in self.layers:
+            layer.weight_exponent = expo
 
     def check_layout(self):
         self.core_ids = np.zeros((128))
@@ -91,7 +96,7 @@ class Network:
             core_id += 1
         self.layout_complete = True
         
-    def create_compartments(self, vth_mant):
+    def create_compartments(self):
         net = nx.NxNet()
         measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
         layer_measurements = [nx.ProbeParameter.SPIKE]
@@ -99,7 +104,7 @@ class Network:
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block.loihi_group = block_group
-                acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=vth_mant, compartmentCurrentDecay=0)
+                acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
                 for neuron in block.neurons:
                     if neuron.loihi_type == Neuron.acc:
                         loihi_neuron = net.createCompartment(acc_proto)
@@ -166,8 +171,7 @@ class Network:
     def add_input_spikes(self, spike_list, net):
         input_layer = self.layers[0]
         weight_e = input_layer.weight_e
-        weight_exponent = input_layer.weight_exponent
-        connection_prototype=nx.ConnectionPrototype(weightExponent=weight_exponent)
+        connection_prototype=nx.ConnectionPrototype(weightExponent=input_layer.weight_exponent)
         n_inputs = 0
         for i, input_spikes in enumerate(spike_list):
             input_spike_generator = net.createSpikeGenProcess(numPorts=1)

@@ -20,7 +20,7 @@ class TestLayers(unittest.TestCase):
             layers.Dense(weights=weights, biases=biases),
             layers.MonitorLayer(),
         ])
-        self.assertEqual(loihi_model.n_compartments(), 1400)
+        self.assertEqual(loihi_model.n_compartments(), 1403)
         self.assertEqual(loihi_model.n_connections(), 32100)
         self.assertEqual(loihi_model.n_parameters(), 10100)
 
@@ -31,7 +31,7 @@ class TestLayers(unittest.TestCase):
         ((1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
-        t_max = 2**9
+        t_max = 2**8
 
         np.random.seed(seed=47)
         weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
@@ -46,7 +46,7 @@ class TestLayers(unittest.TestCase):
         values = np.random.rand(np.product(dim_input))
         inputs = quartz.decode_values_into_spike_input(values, t_max)
 
-        weight_acc = 128
+        weight_acc = 64
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
@@ -55,8 +55,8 @@ class TestLayers(unittest.TestCase):
             nn.Linear(in_features=np.product(dim_input), out_features=dim_output), 
             nn.ReLU()
         )
-        pt_model[0].weight = torch.nn.Parameter(torch.tensor(quantized_weights))
-        pt_model[0].bias = torch.nn.Parameter(torch.tensor((quantized_biases)))
+        pt_model[0].weight = torch.nn.Parameter(torch.tensor(weights))
+        pt_model[0].bias = torch.nn.Parameter(torch.tensor((biases)))
         pt_model_output = pt_model(torch.tensor(quantized_values)).detach().numpy()
         loihi_model_output = loihi_model(inputs, t_max)
         combinations = list(zip(loihi_model_output, pt_model_output.flatten()))

@@ -7,7 +7,7 @@ import ipdb
 
 
 class Layer:
-    def __init__(self, name, weight_e=2**7, weight_acc=2**7, t_min=1, t_neu=1, monitor=False):
+    def __init__(self, name, weight_e=100, weight_acc=255, t_min=1, t_neu=1, monitor=False):
         self.name = name
         self.weight_e = weight_e
         self.weight_acc = weight_acc
