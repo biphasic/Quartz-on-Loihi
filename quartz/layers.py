@@ -3,6 +3,7 @@ from quartz.blocks import Block
 import quartz
 from sklearn.feature_extraction import image
 import numpy as np
+import math
 import ipdb
 
 
@@ -17,6 +18,7 @@ class Layer:
         self.output_dims = []
         self.layer_n = None
         self.prev_layer = None
+        self.weight_scaling = 1
         self.blocks = []
 
     def _get_blocks_of_type(self, block_type):
@@ -80,9 +82,12 @@ class InputLayer(Layer):
 class Dense(Layer):
     def __init__(self, weights, biases, name="dense:", **kwargs):
         super(Dense, self).__init__(name=name, **kwargs)
-        self.weights = weights
+        self.weights = weights.copy()
         self.biases = biases
         self.output_dims = weights.shape[0]
+        self.weight_scaling = 1 # 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
+        if self.weight_scaling > 4: self.weight_scaling = 4
+        self.weights *= self.weight_scaling
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
@@ -203,9 +208,12 @@ class ConvPool2D(Layer):
 class Conv2D(Layer):
     def __init__(self, weights, biases, stride=1, name="conv2D:", monitor=False, **kwargs):
         super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
-        self.weights = weights
+        self.weights = weights.copy()
         self.biases = biases
         self.stride = stride
+        self.weight_scaling = 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
+        if self.weight_scaling > 4: self.weight_scaling = 4
+        self.weights *= self.weight_scaling
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer

@@ -41,7 +41,7 @@ class Network:
         # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
         # set weight exponents
-        self.set_weight_exponents(0)
+        self.set_weight_exponents(1)
         # assign vth_mants according to t_max
         self.check_vth_mants(t_max)
         # assign core layout based on no of compartments and no of unique connections
@@ -83,9 +83,9 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
             if i == 0:
-                max_n_comps = 200
+                max_n_comps = 300
             else:
-                max_n_comps = 200
+                max_n_comps = 300
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
@@ -105,8 +105,12 @@ class Network:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
+                acc_proto_scaled = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant * layer.weight_scaling,
+                                                           compartmentCurrentDecay=0) # for calc neurons
                 for neuron in block.neurons:
-                    if neuron.loihi_type == Neuron.acc:
+                    if neuron.loihi_type == Neuron.acc and "calc" in neuron.name:
+                        loihi_neuron = net.createCompartment(acc_proto_scaled) # increase the dynamic range of input synapse weights
+                    elif neuron.loihi_type == Neuron.acc:
                         loihi_neuron = net.createCompartment(acc_proto)
                     else:
                         pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
@@ -136,14 +140,27 @@ class Network:
                 target_block = target.loihi_group
                 for source in target.get_connected_blocks():
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
                     source_block = source.loihi_group
                     weights, delays, mask = source.get_connection_matrices_to(target)
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
+                    if source == target and isinstance(target, quartz.blocks.ReLCo): 
+                        proto_map[0,2] = 2
+                        proto_map[0,0] = 3
+                    ok = source
+                    if "split-bias" in source.name and isinstance(target, quartz.blocks.ReLCo):
+                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
+                        proto_map[0,1] = 1
+                        proto_map[0,2] = 2
+                        #ipdb.set_trace()
                     weights = weights.round()
-                    weights[weights>255] = 255
-                    weights[weights<-255] = -255
+                    #weights[weights>255] = 255
+                    #weights[weights<-255] = -255
                     weight_hash = hash(tuple(weights.flatten()))
                     hash_key = weight_hash
                     if False and hash_key in connection_dict.keys() and source.name not in connection_dict[hash_key][::3]\
