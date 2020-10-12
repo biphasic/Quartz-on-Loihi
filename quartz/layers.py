@@ -52,8 +52,7 @@ class Layer:
     def check_block_delays(self, t_max, numDendriticAccumulators):
         for block in self.blocks:
             if isinstance(block, quartz.blocks.ConstantDelay):
-                block.reset()
-                block.layout_delays(t_max, numDendriticAccumulators)
+                if not block.layout: block.layout_delays(t_max, numDendriticAccumulators)
 
     def print_connections(self, maximum=10e7):
         for i, block in enumerate(self.blocks):
@@ -85,8 +84,8 @@ class Dense(Layer):
         self.weights = weights.copy()
         self.biases = biases
         self.output_dims = weights.shape[0]
-        self.weight_scaling = 1 # 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
-        if self.weight_scaling > 4: self.weight_scaling = 4
+        self.weight_scaling = 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
+        if self.weight_scaling > 2: self.weight_scaling = 2
         self.weights *= self.weight_scaling
 
     def connect_from(self, prev_layer):
@@ -212,7 +211,7 @@ class Conv2D(Layer):
         self.biases = biases
         self.stride = stride
         self.weight_scaling = 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
-        if self.weight_scaling > 4: self.weight_scaling = 4
+        if self.weight_scaling > 2: self.weight_scaling = 2
         self.weights *= self.weight_scaling
 
     def connect_from(self, prev_layer):

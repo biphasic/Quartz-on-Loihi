@@ -41,7 +41,7 @@ class Network:
         # add intermediate neurons for delay encoder depending on t_max
         self.check_block_delays(t_max, 2**3)
         # set weight exponents
-        self.set_weight_exponents(1)
+        self.set_weight_exponents(0)
         # assign vth_mants according to t_max
         self.check_vth_mants(t_max)
         # assign core layout based on no of compartments and no of unique connections
@@ -85,7 +85,7 @@ class Network:
             if i == 0:
                 max_n_comps = 300
             else:
-                max_n_comps = 300
+                max_n_comps = 400
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:

@@ -93,23 +93,8 @@ class ConstantDelay(Block):
         super(ConstantDelay, self).__init__(name=name, type=type, **kwargs)
         input_ = Neuron(type=Neuron.input, name=self.name+"input", parent=self)
         output = Neuron(type=Neuron.output, name=self.name+"output", parent=self)
-        self.neurons = [input_, output]            
-        self.reset()
-
-    def reset(self):
-        if len(self.neurons) > 2:
-            input_ = self.neurons[0]
-            input_.reset_outgoing_connections()
-            output = self.neurons[-1]
-            output.reset_incoming_connections()
-            self.neurons = [input_, output]            
-        else:
-            pass
-#         for neuron in self.neurons:
-#             neuron.reset_outgoing_connections()
-#         input_ = Neuron(type=Neuron.input, name=self.name+"input", parent=self)
-#         output = Neuron(type=Neuron.output, name=self.name+"output", parent=self)
-#         self.neurons = [input_, output]
+        self.neurons = [input_, output]
+        self.layout = False
 
     def layout_delays(self, t_max, numDendriticAccumulators):
         delay = round(self.value * t_max)
@@ -137,6 +122,7 @@ class ConstantDelay(Block):
             i += 1
         self.neurons[-1].connect_to(output, weight_e, delay)
         self.neurons += [output]
+        self.layout = True
 
 
 class Splitter(Block):
