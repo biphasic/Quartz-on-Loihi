@@ -7,8 +7,10 @@ import nxsdk
 import nxsdk.api.n2a as nx
 from nxsdk.graph.monitor.probes import PerformanceProbeCondition, IntervalProbeCondition, SpikeProbeCondition
 from nxsdk.logutils.nxlogging import set_verbosity, LoggingLevel
+from nxsdk.graph.processes.phase_enums import Phase
 import datetime
 import ipdb
+import os
 
 
 class Network:
@@ -21,7 +23,9 @@ class Network:
         for i in range(1, len(layers)): # skip input layer
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, input_spike_list, t_max, steps_per_image=0):
+    def __call__(self, inputs, t_max, steps_per_image=0):
+        input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
+        n_samples = inputs.shape[0] if len(inputs.shape) == 4 else 1
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         # monitor output layer and setup probes
@@ -32,7 +36,7 @@ class Network:
         # use reset snip in case of multiple samples
         board = self.add_snips(board)
         # execute
-        self.run_on_loihi(board, steps_per_image)
+        self.run_on_loihi(board, steps_per_image, n_samples)
         print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
         return np.array([value for (key, value) in sorted(output_probe.output()[0].items())])
     
@@ -215,11 +219,22 @@ class Network:
         return nx.N2Compiler().compile(net) # return board
         
     def add_snips(self, board):
+        snip_dir = os.getcwd() + "/quartz/snips"
+        reset_snip = board.createSnip(
+            name="batch-reset",
+            includeDir=snip_dir,
+            cFilePath=snip_dir + "/reset.c",
+            funcName="reset",
+            guardName="doReset", 
+            phase=Phase.EMBEDDED_MGMT)
         return board
     
-    def run_on_loihi(self, board, steps_per_image, partition='loihi'):
+    def run_on_loihi(self, board, steps_per_image, n_samples, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = int(len(self.layers)*2.5*self.t_max)
+        if steps_per_image == None:
+            run_time = int(len(self.layers)*2.5*self.t_max)
+        else:
+            run_time = steps_per_image * n_samples
         board.run(run_time, partition=partition)
         board.disconnect()        
 
