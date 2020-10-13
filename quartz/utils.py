@@ -30,7 +30,9 @@ def simulate_encoded_value_delay(value, t_max):
 
 def decode_values_into_spike_input(samples, t_max, steps_per_sample=0, t_min=1, start_time=1):
     assert samples.max() <= 1 and samples.min() >= 0
-    if samples.shape[0] > 1 and steps_per_sample == 0: raise Error
+    while len(samples.shape) < 4:
+        samples = np.expand_dims(samples, axis=0)
+    if samples.shape[0] > 1 and steps_per_sample == 0: raise Exception("Specify # of steps per sample")
     inputs = [[] for i in range(int(np.product(samples.shape[1:])))]
     for sample in samples:
         for channel in sample:
