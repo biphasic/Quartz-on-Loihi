@@ -6,9 +6,6 @@ from nxsdk.utils.plotutils import plotProbes
 from quartz.utils import decode_spike_timings
 
 
-#from quartz.probe import LayerProbe, BlockProbe
-
-
 def probe(target):
     if isinstance(target, quartz.layers.Layer):
         return LayerProbe(target)

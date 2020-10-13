@@ -18,32 +18,32 @@ class Network:
         self.layers = layers
         self.probes = []
         self.layout_complete = False
-        for i in range(1, len(layers)):
+        for i in range(1, len(layers)): # skip input layer
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, input_spike_list, t_max):
-        output_probe = quartz.probe(self.layers[-1])
-        self.set_probe_t_max(t_max)
-        board = self.build_model(input_spike_list, t_max)
-        self.run_on_loihi(board, t_max)
-        print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
-        return np.array([value[0] for (key, value) in sorted(output_probe.output()[0].items())])
-    
-    def set_probe_t_max(self, t_max):
-        for layer in self.layers:
-            if layer.monitor: layer.probe.t_max = t_max
-            for block in layer.blocks:
-                if block.monitor: block.probe.t_max = t_max
-
-    def build_model(self, input_spike_list, t_max):
-        net = nx.NxNet()
+    def __call__(self, input_spike_list, t_max, steps_per_image=0):
         assert np.log2(t_max).is_integer()
-        # add intermediate neurons for delay encoder depending on t_max
-        self.check_block_delays(t_max, 2**3)
+        self.t_max = t_max
+        # monitor output layer and setup probes
+        output_probe = quartz.probe(self.layers[-1])
+        self.set_probe_t_max()
+        # create and connect compartments and add input spikes
+        board = self.build_model(input_spike_list)
+        # use reset snip in case of multiple samples
+        board = self.add_snips(board)
+        # execute
+        self.run_on_loihi(board, steps_per_image)
+        print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
+        return np.array([value for (key, value) in sorted(output_probe.output()[0].items())])
+    
+    def build_model(self, input_spike_list):
+        net = nx.NxNet()
+        # add intermediate neurons for delay encoder depending on # dendritic delays
+        self.check_block_delays(2**3)
         # set weight exponents
         self.set_weight_exponents(0)
         # assign vth_mants according to t_max
-        self.check_vth_mants(t_max)
+        self.check_vth_mants()
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
@@ -65,17 +65,23 @@ class Network:
     def n_connections(self):
         return sum([layer.n_connections() for layer in self.layers])
     
-    def check_block_delays(self, t_max, numDendriticAccumulators):
+    def check_block_delays(self, numDendriticAccumulators):
         for layer in self.layers:
-            layer.check_block_delays(t_max, numDendriticAccumulators)
+            layer.check_block_delays(self.t_max, numDendriticAccumulators)
 
-    def check_vth_mants(self, t_max):
+    def check_vth_mants(self):
         for layer in self.layers:
-            layer.vth_mant = 2**(layer.weight_exponent + np.log2(t_max*layer.weight_acc))
+            layer.vth_mant = 2**(layer.weight_exponent + np.log2(self.t_max*layer.weight_acc))
 
     def set_weight_exponents(self, expo):
         for layer in self.layers:
             layer.weight_exponent = expo
+
+    def set_probe_t_max(self):
+        for layer in self.layers:
+            if layer.monitor: layer.probe.t_max = self.t_max
+            for block in layer.blocks:
+                if block.monitor: block.probe.t_max = self.t_max
 
     def check_layout(self):
         self.core_ids = np.zeros((128))
@@ -208,9 +214,12 @@ class Network:
         print("{} Compiling now...".format(datetime.datetime.now()))
         return nx.N2Compiler().compile(net) # return board
         
-    def run_on_loihi(self, board, t_max, partition='loihi'):
+    def add_snips(self, board):
+        return board
+    
+    def run_on_loihi(self, board, steps_per_image, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        run_time = int(len(self.layers)*2.5*t_max)
+        run_time = int(len(self.layers)*2.5*self.t_max)
         board.run(run_time, partition=partition)
         board.disconnect()        
 
