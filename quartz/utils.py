@@ -35,8 +35,8 @@ def decode_values_into_spike_input(samples, t_max, steps_per_sample=0, t_min=1, 
     if samples.shape[0] > 1 and steps_per_sample == 0: raise Exception("Specify # of steps per sample")
     inputs = [[] for i in range(int(np.product(samples.shape[1:])))]
     for sample in samples:
-        for channel in sample:
+        for c, channel in enumerate(sample):
             for i, value in enumerate(channel.flatten()):
-                inputs[i] += [start_time, (value*t_max).round()+t_min+start_time]
+                inputs[c*len(channel.flatten())+i] += [start_time, (value*t_max).round()+t_min+start_time]
         start_time += steps_per_sample
     return inputs
