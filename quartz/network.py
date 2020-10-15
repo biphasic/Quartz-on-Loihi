@@ -37,7 +37,8 @@ class Network:
         board = self.add_snips(board)
         # execute
         self.run_on_loihi(board, steps_per_image, n_samples)
-        print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
+        self.data = output_probe.output()
+        # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
         return np.array([value for (key, value) in sorted(output_probe.output()[0].items())])
     
     def build_model(self, input_spike_list):
