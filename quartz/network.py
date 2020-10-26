@@ -8,6 +8,8 @@ import nxsdk.api.n2a as nx
 from nxsdk.graph.monitor.probes import PerformanceProbeCondition, IntervalProbeCondition, SpikeProbeCondition
 from nxsdk.logutils.nxlogging import set_verbosity, LoggingLevel
 from nxsdk.graph.processes.phase_enums import Phase
+from nxsdk.api.enums.api_enums import ProbeParameter
+from nxsdk.graph.monitor.probes import PerformanceProbeCondition
 import datetime
 import ipdb
 import os
@@ -16,17 +18,17 @@ import os
 class Network:
     def __init__(self, layers, name=''):
         self.name = name
-        self.data = {}
         self.layers = layers
         self.probes = []
         self.layout_complete = False
         for i in range(1, len(layers)): # skip input layer
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, inputs, t_max, steps_per_image=0):
+    def __call__(self, inputs, t_max, steps_per_image=0, profiling=False):
         input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
-        n_samples = inputs.shape[0] if len(inputs.shape) == 4 else 1
+        batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         assert np.log2(t_max).is_integer()
+        self.data = []
         self.t_max = t_max
         # monitor output layer and setup probes
         output_probe = quartz.probe(self.layers[-1])
@@ -36,10 +38,10 @@ class Network:
         # use reset snip in case of multiple samples
         board = self.add_snips(board)
         # execute
-        self.run_on_loihi(board, steps_per_image, n_samples)
+        self.run_on_loihi(board, steps_per_image, batch_size, profiling)
         self.data = output_probe.output()
         # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
-        return np.array([value for (key, value) in sorted(output_probe.output()[0].items())])
+        return np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
     
     def build_model(self, input_spike_list):
         net = nx.NxNet()
@@ -230,14 +232,20 @@ class Network:
             phase=Phase.EMBEDDED_MGMT)
         return board
     
-    def run_on_loihi(self, board, steps_per_image, n_samples, partition='loihi'):
+    def run_on_loihi(self, board, steps_per_image, n_samples, profiling, partition='loihi'):
         set_verbosity(LoggingLevel.ERROR)
-        if steps_per_image == None:
+        if steps_per_image == 0:
             run_time = int(len(self.layers)*2.5*self.t_max)
         else:
             run_time = steps_per_image * n_samples
+        if profiling:
+            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=1024, binSize=2)
+            eProbe = board.probe(ProbeParameter.ENERGY, pc)
         board.run(run_time, partition=partition)
-        board.disconnect()        
+        board.disconnect()
+        if profiling:
+            self.power_stats = board.energyTimeMonitor.powerProfileStats
+            print(self.power_stats)
 
     def print_core_layout(self, redo=True):
         if not self.layout_complete or redo: self.check_layout()

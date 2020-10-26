@@ -28,7 +28,7 @@ def simulate_encoded_value_accumulation(value, weight_acc, t_max=2**8, vth_mant=
 def simulate_encoded_value_delay(value, t_max):
     return round(value * t_max) / t_max
 
-def decode_values_into_spike_input(samples, t_max, steps_per_sample=0, t_min=1, start_time=1):
+def decode_values_into_spike_input(samples, t_max, steps_per_sample, t_min=1, start_time=1):
     assert samples.max() <= 1 and samples.min() >= 0
     while len(samples.shape) < 4:
         samples = np.expand_dims(samples, axis=0)
