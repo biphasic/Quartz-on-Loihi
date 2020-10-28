@@ -151,7 +151,7 @@ class ReLCo(Block):
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         sync.connect_to(calc, weight_acc)
         sync.connect_to(ref, weight_acc)
-        calc.connect_to(first, weight_e, t_min)
+        calc.connect_to(first, weight_e)
         calc.connect_to(calc, -weight_acc)
         ref.connect_to(first, weight_e)
         ref.connect_to(second, weight_e, t_min)
