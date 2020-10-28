@@ -84,7 +84,7 @@ class Dense(Layer):
         self.weights = weights.copy()
         self.biases = biases
         self.output_dims = weights.shape[0]
-        self.weight_scaling = 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
+        self.weight_scaling = 2**math.floor(np.log2(1/abs(weights).max())) # can only scale by power of 2
         if self.weight_scaling > 2: self.weight_scaling = 2
         self.weights *= self.weight_scaling
 
@@ -210,7 +210,7 @@ class Conv2D(Layer):
         self.weights = weights.copy()
         self.biases = biases
         self.stride = stride
-        self.weight_scaling = 2**math.floor(np.log2(1/weights.max())) # can only scale by power of 2
+        self.weight_scaling = 2**math.floor(np.log2(1/abs(weights).max())) # can only scale by power of 2
         if self.weight_scaling > 2: self.weight_scaling = 2
         self.weights *= self.weight_scaling
 
