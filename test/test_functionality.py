@@ -28,11 +28,9 @@ class TestFunctionality(unittest.TestCase):
 
         loihi_output = loihi_model(values, t_max)
         self.assertEqual(len(loihi_output), len(quantized_biases.flatten()))
-        combinations = list(zip(loihi_output, np.maximum(quantized_biases.flatten(), 0)))
         #ipdb.set_trace()
-        #print(combinations)
-        for (out, ideal) in combinations:
-            if ideal <= 1: self.assertEqual(out, ideal)
+        self.assertTrue(all(loihi_output == np.maximum(quantized_biases.flatten(), 0)))
+
 
     @parameterized.expand([
         ((1,10,1,), 1),
@@ -59,7 +57,6 @@ class TestFunctionality(unittest.TestCase):
         pt_model[0].weight = torch.nn.Parameter(torch.tensor(weights))
         pt_model[0].bias = torch.nn.Parameter(torch.tensor(np.zeros(dim_output)))
         model_output = pt_model(torch.tensor(quantized_values).flatten()).detach().numpy()
-        ipdb.set_trace()
         quantized_model_output = (model_output * t_max).round() / t_max
         
         loihi_output = loihi_model(values, t_max)

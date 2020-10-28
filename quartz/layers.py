@@ -120,7 +120,7 @@ class Dense(Layer):
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
                 input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
                 bias_sign = 1 if biases[i] >= 0 else -1
-                splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc)
+                splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc, self.t_min)
                 splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
                 splitter.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs)
                 self.blocks += [bias, splitter]
@@ -181,7 +181,7 @@ class ConvPool2D(Layer):
                         block.second().connect_to(calc_neuron, -weight*self.weight_acc, delay+extra_delay_second)
                 if self.biases is not None:
                     bias_sign = 1 if self.biases[output_channel] >= 0 else -1
-                    splitter.first().connect_to(calc_neuron, bias_sign*self.weight_acc)
+                    splitter.first().connect_to(calc_neuron, bias_sign*self.weight_acc, self.t_min)
                     splitter.second().connect_to(calc_neuron, -bias_sign*self.weight_acc)
 
         self.output_dims = [output_channels, *side_lengths]
@@ -263,7 +263,7 @@ class Conv2D(Layer):
                         block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay+extra_delay_second)
                 if biases is not None:
                     bias_sign = 1 if biases[output_channel] >= 0 else -1
-                    splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc)
+                    splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc, self.t_min)
                     splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
                     splitter.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs)
 
