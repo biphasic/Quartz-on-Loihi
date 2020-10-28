@@ -26,15 +26,15 @@ class TestFunctionality(unittest.TestCase):
         quantized_biases = (biases*t_max).round()/t_max
 
         loihi_output = loihi_model(values, t_max)
-        print(loihi_output)
+        #print(loihi_output)
         self.assertEqual(len(loihi_output), len(quantized_biases.flatten()))
         self.assertTrue(all(loihi_output == np.maximum(quantized_biases.flatten(), 0)))
 
 
     @parameterized.expand([
         ((1,10,1,), 1),
-        #((1,100,1,), 1),
-        #((1,1,1,), 1),
+        ((1,100,1,), 1),
+        ((1,1,1,), 1),
     ])
     def test_weights(self, dim_input, dim_output):
         t_max = 2**8
