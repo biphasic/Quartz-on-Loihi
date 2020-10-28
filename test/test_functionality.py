@@ -14,7 +14,6 @@ class TestFunctionality(unittest.TestCase):
     ])
     def test_bias(self, dim_input, dim_output):
         t_max = 2**8
-        np.random.seed(seed=47)
         weights = np.ones((dim_output,np.product(dim_input)))
         biases = (np.random.rand(dim_output) - 0.5)
 
@@ -27,8 +26,8 @@ class TestFunctionality(unittest.TestCase):
         quantized_biases = (biases*t_max).round()/t_max
 
         loihi_output = loihi_model(values, t_max)
+        print(loihi_output)
         self.assertEqual(len(loihi_output), len(quantized_biases.flatten()))
-        #ipdb.set_trace()
         self.assertTrue(all(loihi_output == np.maximum(quantized_biases.flatten(), 0)))
 
 
@@ -47,7 +46,7 @@ class TestFunctionality(unittest.TestCase):
             layers.Dense(weights=weights, biases=None),
             layers.MonitorLayer(),
         ])
-        values = np.ones((1, *dim_input))
+        values = np.ones((1, *dim_input)) * 255 / 256
         quantized_values = (values*t_max).round()/t_max
 
         pt_model = nn.Sequential(
