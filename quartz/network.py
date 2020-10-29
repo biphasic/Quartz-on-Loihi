@@ -24,7 +24,7 @@ class Network:
         for i in range(1, len(layers)): # skip input layer
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, inputs, t_max, steps_per_image=0, profiling=False):
+    def __call__(self, inputs, t_max, steps_per_image=0, profiling=False, partition='loihi'):
         input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         assert np.log2(t_max).is_integer()
@@ -38,7 +38,7 @@ class Network:
         # use reset snip in case of multiple samples
         board = self.add_snips(board)
         # execute
-        self.run_on_loihi(board, steps_per_image, batch_size, profiling)
+        self.run_on_loihi(board, steps_per_image, batch_size, profiling, partition)
         self.data = output_probe.output()
         # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
         return np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
@@ -164,12 +164,12 @@ class Network:
                         proto_map[0,2] = 2
                         proto_map[0,0] = 3
                     ok = source
-                    if "split-bias" in source.name and isinstance(target, quartz.blocks.ReLCo):
-                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
-                        proto_map[0,1] = 1
-                        proto_map[0,2] = 2
+#                     if "split-bias" in source.name and isinstance(target, quartz.blocks.ReLCo):
+#                         conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
+#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
+#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
+#                         proto_map[0,1] = 1
+#                         proto_map[0,2] = 2
                         #ipdb.set_trace()
                     weights = weights.round()
                     #weights[weights>255] = 255
@@ -232,7 +232,7 @@ class Network:
             phase=Phase.EMBEDDED_MGMT)
         return board
     
-    def run_on_loihi(self, board, steps_per_image, n_samples, profiling, partition='loihi'):
+    def run_on_loihi(self, board, steps_per_image, n_samples, profiling, partition):
         set_verbosity(LoggingLevel.ERROR)
         if steps_per_image == 0:
             run_time = int(len(self.layers)*2.5*self.t_max)

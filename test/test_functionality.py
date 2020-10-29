@@ -11,6 +11,7 @@ import torch.nn as nn
 class TestFunctionality(unittest.TestCase):
     @parameterized.expand([
         ((1,1,1,), 15),
+        ((1,5,5,), 15),
     ])
     def test_bias(self, dim_input, dim_output):
         t_max = 2**8
@@ -24,11 +25,10 @@ class TestFunctionality(unittest.TestCase):
         ])
         values = np.zeros((1, *dim_input))
         quantized_biases = (biases*t_max).round()/t_max
-
+        ideal_output = np.maximum(quantized_biases.flatten(), 0)
         loihi_output = loihi_model(values, t_max)
-        #print(loihi_output)
         self.assertEqual(len(loihi_output), len(quantized_biases.flatten()))
-        self.assertTrue(all(loihi_output == np.maximum(quantized_biases.flatten(), 0)))
+        self.assertTrue(all(loihi_output == ideal_output))
 
 
     @parameterized.expand([
@@ -78,7 +78,7 @@ class TestFunctionality(unittest.TestCase):
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input),
-            layers.Dense(weights=weights, biases=None),
+            layers.Dense(weights=weights, biases=None, weight_acc=128),
             layers.MonitorLayer(),
         ])
         relco_probe = quartz.probe(loihi_model.layers[1].blocks[0])

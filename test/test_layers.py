@@ -27,14 +27,14 @@ class TestLayers(unittest.TestCase):
 
     @parameterized.expand([
         ((1,10,10,), 10),
-        # ((1,120,1,), 84),
-        # ((1,84,1,), 10),
+        ((1,120,1,), 84),
+        ((1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**8
         np.random.seed(seed=35)
-        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 4
-        biases = (np.random.rand(dim_output) - 0.5) / 2
+        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
+        biases = (np.random.rand(dim_output) - 0.5) / 2 # np.zeros((dim_output)) #
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input),
@@ -70,7 +70,7 @@ class TestLayers(unittest.TestCase):
         t_max = 2**8
         kernel_size = weight_dims[2:]
         weights = (np.random.rand(*weight_dims)-0.5) / 4
-        biases = (np.random.rand(weight_dims[0])-0.5) / 2
+        biases = (np.random.rand(weight_dims[0])-0.5) / 2 # np.zeros((weight_dims[0])) # 
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims),
@@ -79,7 +79,6 @@ class TestLayers(unittest.TestCase):
         ])
 
         values = np.random.rand(np.product(input_dims)) / 2
-
         quantized_values = (values*t_max).round()/t_max
         quantized_values = quantized_values.reshape(*input_dims)
         weight_acc = loihi_model.layers[1].weight_acc
@@ -96,7 +95,7 @@ class TestLayers(unittest.TestCase):
         output_combinations = list(zip(loihi_output, model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
     @parameterized.expand([

@@ -33,7 +33,7 @@ class TestMultiLayer(unittest.TestCase):
         
         values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
-        weight_acc = 128
+        weight_acc = loihi_model.layers[1].weight_acc
         quantized_values = (values*t_max).round()/t_max
         quantized_weights1 = (weight_acc*weights1).round()/weight_acc
         quantized_weights2 = (weight_acc*weights2).round()/weight_acc
@@ -62,9 +62,7 @@ class TestMultiLayer(unittest.TestCase):
         ((1,7,7), (6,1,5,5), (100,6,3,3)),
     ])
     def test_2conv(self, input_dims, conv_weight_dims1, conv_weight_dims2):
-        t_max = 2**8
-        weight_acc = 128
-        
+        t_max = 2**8        
         conv_kernel_size1 = conv_weight_dims1[2:]
         conv_kernel_size2 = conv_weight_dims2[2:]
         conv_out_dim1 = conv_weight_dims1[0]
@@ -86,6 +84,7 @@ class TestMultiLayer(unittest.TestCase):
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_values = quantized_values.reshape(*input_dims[:3])
+        weight_acc = loihi_model.layers[1].weight_acc
         quantized_weights1 = (weight_acc*weights1).round()/weight_acc
         quantized_weights2 = (weight_acc*weights2).round()/weight_acc
         quantized_biases1 = (biases1*t_max).round()/t_max
@@ -116,7 +115,6 @@ class TestMultiLayer(unittest.TestCase):
         t_max = 2**8
         stride1 = kernel_size1[0]
         stride2 = kernel_size2[0]
-        weight_acc = 128
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims),
@@ -149,11 +147,9 @@ class TestMultiLayer(unittest.TestCase):
     ])
     def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
         t_max = 2**8
-        weight_acc = 128
         conv_kernel_size = conv_weight_dims[2:]
         conv_out_dim = conv_weight_dims[0]
         
-
         weights1 = (np.random.rand(*conv_weight_dims)-0.5) / 4
         biases1 = (np.random.rand(conv_out_dim)-0.5) / 2
         weights2 = (np.random.rand(fc_out_dim, np.product(conv_out_dim)) - 0.5) / 2
@@ -170,6 +166,7 @@ class TestMultiLayer(unittest.TestCase):
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
         quantized_values = quantized_values.reshape(*input_dims[:3])
+        weight_acc = loihi_model.layers[1].weight_acc
         quantized_weights1 = (weight_acc*weights1).round()/weight_acc
         quantized_weights2 = (weight_acc*weights2).round()/weight_acc
         quantized_biases1 = (biases1*t_max).round()/t_max
@@ -198,9 +195,7 @@ class TestMultiLayer(unittest.TestCase):
         ((6,14,14), (8,6,5,5)),
     ])
     def test_conv_maxpool_2d(self, input_dims, weight_dims):
-        t_max = 2**9
-        weight_acc = 128
-        
+        t_max = 2**9        
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -218,6 +213,7 @@ class TestMultiLayer(unittest.TestCase):
         values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
+        weight_acc = loihi_model.layers[1].weight_acc
         quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
 
@@ -241,9 +237,7 @@ class TestMultiLayer(unittest.TestCase):
         ((6,28,28), (8,6,5,5)),
     ])
     def test_maxpool_conv(self, input_dims, weight_dims):
-        t_max = 2**9
-        weight_acc = 128
-        
+        t_max = 2**9        
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -261,6 +255,7 @@ class TestMultiLayer(unittest.TestCase):
         values = np.random.rand(np.product(input_dims)) / 2
         inputs = quartz.utils.decode_values_into_spike_input(values, t_max)
         quantized_values = (values*t_max).round()/t_max
+        weight_acc = loihi_model.layers[1].weight_acc
         quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
 
@@ -283,7 +278,6 @@ class TestMultiLayer(unittest.TestCase):
         weight_dims = ( 3,1,3,3)
         weight_dims2 = (5,3,3,3)
         t_max = 2**9
-        weight_acc = 2**7
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -292,13 +286,14 @@ class TestMultiLayer(unittest.TestCase):
         np.set_printoptions(suppress=True)
         weights = (np.random.rand(*weight_dims)-0.5) / 2 # np.zeros(weight_dims) #
         weights2 = (np.random.rand(*weight_dims2)-0.5) / 2 # np.zeros(weight_dims) #
+        weight_acc = loihi_model.layers[1].weight_acc
         biases = (np.random.rand(weight_dims[0])-0.5)
         biases2 = (np.random.rand(weight_dims2[0])-0.5)
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims),
-            layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size, weight_acc=weight_acc),
-            layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size, weight_acc=weight_acc),
+            layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
+            layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
             layers.MonitorLayer(),
         ])
 
@@ -328,7 +323,6 @@ class TestMultiLayer(unittest.TestCase):
         weight_dims = ( 2,1,3,3)
         weight_dims2 = (4,2,3,3)
         t_max = 2**9
-        weight_acc = 2**7
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -337,13 +331,14 @@ class TestMultiLayer(unittest.TestCase):
         np.set_printoptions(suppress=True)
         weights = (np.random.rand(*weight_dims)-0.5) / 2 # np.zeros(weight_dims) #
         weights2 = (np.random.rand(*weight_dims2)-0.5) / 2 # np.zeros(weight_dims) #
+        weight_acc = loihi_model.layers[1].weight_acc
         biases = (np.random.rand(weight_dims[0])-0.5)
         biases2 = (np.random.rand(weight_dims2[0])-0.5)
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims),
-            layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size, weight_acc=weight_acc),
-            layers.Conv2D(weights=weights2, biases=biases2, weight_acc=weight_acc),
+            layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
+            layers.Conv2D(weights=weights2, biases=biases2),
             layers.MonitorLayer(),
         ])
 
