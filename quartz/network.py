@@ -36,7 +36,8 @@ class Network:
         # create and connect compartments and add input spikes
         board = self.build_model(input_spike_list)
         # use reset snip in case of multiple samples
-        board = self.add_snips(board)
+        if batch_size > 1:
+            board = self.add_snips(board)
         # execute
         self.run_on_loihi(board, steps_per_image, batch_size, profiling, partition)
         self.data = output_probe.output()
@@ -96,9 +97,9 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
             if i == 0:
-                max_n_comps = 300
+                max_n_comps = 250
             else:
-                max_n_comps = 400
+                max_n_comps = 220
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
@@ -235,7 +236,7 @@ class Network:
     def run_on_loihi(self, board, steps_per_image, n_samples, profiling, partition):
         set_verbosity(LoggingLevel.ERROR)
         if steps_per_image == 0:
-            run_time = int(len(self.layers)*2.5*self.t_max)
+            run_time = int(len(self.layers)*3*self.t_max)
         else:
             run_time = steps_per_image * n_samples
         if profiling:

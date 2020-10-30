@@ -12,11 +12,11 @@ import collections
 
 class TestMultiLayer(unittest.TestCase):
     @parameterized.expand([
-        ((1,10,1,), 10, 10),
+        #((1,10,1,), 10, 10),
         ((1,120,1,), 84, 10),
     ])
     def test_2fc(self, input_dims, l1_output_dim, l2_output_dim):
-        t_max = 2**9
+        t_max = 2**8
         batch_size = 1
         np.random.seed(seed=48)
         weights1 = (np.random.rand(l1_output_dim, np.product(input_dims)) - 0.5) / 2
@@ -187,7 +187,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,10,10), (6,1,3,3)),
-        ((1,32,32), (6,1,5,5)),
+        ((1,28,28), (4,1,5,5)),
         ((4,14,14), (6,4,5,5)),
     ])
     def test_conv_maxpool_2d(self, input_dims, weight_dims):
@@ -230,7 +230,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,10,10), (6,1,5,5)),
-        ((6,28,28), (8,6,5,5)),
+        ((3,24,24), (8,3,5,5)),
     ])
     def test_maxpool_conv(self, input_dims, weight_dims):
         t_max = 2**9
@@ -238,7 +238,6 @@ class TestMultiLayer(unittest.TestCase):
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
-        
         weights = (np.random.rand(*weight_dims)-0.5) / 4
         biases = (np.random.rand(weight_dims[0])-0.5) / 2
 
@@ -248,7 +247,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.Conv2D(weights=weights, biases=biases),
             layers.MonitorLayer(),
         ])
-
         values = np.random.rand(batch_size, *input_dims) / 2
         quantized_values = (values*t_max).round()/t_max
         weight_acc = loihi_model.layers[1].weight_acc
@@ -270,56 +268,61 @@ class TestMultiLayer(unittest.TestCase):
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
-    def test_convpool2(self):
-        input_dims = ( 1,16,16)
+    def test_2convpool(self):
+        input_dims = ( 1,14,14)
         weight_dims = ( 3,1,3,3)
         weight_dims2 = (5,3,3,3)
-        t_max = 2**9
+        t_max = 2**8
         batch_size = 1
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
-
         np.random.seed(seed=44)
         np.set_printoptions(suppress=True)
-        weights = (np.random.rand(*weight_dims)-0.5) / 2 # np.zeros(weight_dims) #
-        weights2 = (np.random.rand(*weight_dims2)-0.5) / 2 # np.zeros(weight_dims) #
-        #weight_acc = loihi_model.layers[1].weight_acc
-        biases = (np.random.rand(weight_dims[0])-0.5)
-        biases2 = (np.random.rand(weight_dims2[0])-0.5)
+        weights1 = (np.random.rand(*weight_dims)-0.5) / 5 # np.zeros(weight_dims) #
+        weights2 = (np.random.rand(*weight_dims2)-0.5) / 5 # np.zeros(weight_dims) #
+        biases1 = (np.random.rand(weight_dims[0])-0.5) / 3
+        biases2 = (np.random.rand(weight_dims2[0])-0.5) / 3 
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims),
-            layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
+            layers.ConvPool2D(weights=weights1, biases=biases1, pool_kernel_size=pooling_kernel_size),
             layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
             layers.MonitorLayer(),
         ])
-
-        values = np.random.rand(batch_size, *input_dims) / 2
-
+        values = np.random.rand(batch_size, *input_dims) / 3
+        quantized_values = (values*t_max).round()/t_max
+        weight_acc = loihi_model.layers[1].weight_acc
+        quantized_weights1 = (weight_acc*weights1).round()/weight_acc
+        quantized_weights2 = (weight_acc*weights2).round()/weight_acc
+        quantized_biases1 = (biases1*t_max).round()/t_max
+        quantized_biases2 = (biases2*t_max).round()/t_max
+        
         model = nn.Sequential(
             nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=conv_kernel_size), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
             nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=conv_kernel_size), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
         )
-        model[0].weight = nn.Parameter(torch.tensor(weights))
-        model[0].bias = nn.Parameter(torch.tensor(biases))
-        model[4].weight = nn.Parameter(torch.tensor(weights2))
-        model[4].bias = nn.Parameter(torch.tensor(biases2))
-        model_output = model(torch.tensor(values)).detach().numpy()
+        model[0].weight = nn.Parameter(torch.tensor(quantized_weights1))
+        model[0].bias = nn.Parameter(torch.tensor(quantized_biases1))
+        model[4].weight = nn.Parameter(torch.tensor(quantized_weights2))
+        model[4].bias = nn.Parameter(torch.tensor(quantized_biases2))
+        model_output = model(torch.tensor(quantized_values)).detach().numpy()
         loihi_output = loihi_model(values, t_max)
         
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output, model_output.flatten()))
+        #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+
 
     def test_convpool_conv(self):
         input_dims = ( 1,16,16)
         weight_dims = ( 2,1,3,3)
         weight_dims2 = (4,2,3,3)
-        t_max = 2**9
+        t_max = 2**8
         batch_size = 1
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
@@ -329,7 +332,6 @@ class TestMultiLayer(unittest.TestCase):
         np.set_printoptions(suppress=True)
         weights = (np.random.rand(*weight_dims)-0.5) / 2 # np.zeros(weight_dims) #
         weights2 = (np.random.rand(*weight_dims2)-0.5) / 2 # np.zeros(weight_dims) #
-        #weight_acc = loihi_model.layers[1].weight_acc
         biases = (np.random.rand(weight_dims[0])-0.5)
         biases2 = (np.random.rand(weight_dims2[0])-0.5)
 
@@ -341,6 +343,7 @@ class TestMultiLayer(unittest.TestCase):
         ])
 
         values = np.random.rand(batch_size, *input_dims) / 2
+        #weight_acc = loihi_model.layers[1].weight_acc
 
         model = nn.Sequential(
             nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=conv_kernel_size), nn.ReLU(),
@@ -356,7 +359,7 @@ class TestMultiLayer(unittest.TestCase):
         
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output, model_output.flatten()))
-        ipdb.set_trace()
+        # print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 

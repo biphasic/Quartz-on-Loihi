@@ -32,6 +32,7 @@ class TestLayers(unittest.TestCase):
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**8
+        batch_size = 1
         np.random.seed(seed=35)
         weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
         biases = (np.random.rand(dim_output) - 0.5) / 2 # np.zeros((dim_output)) #
@@ -41,7 +42,7 @@ class TestLayers(unittest.TestCase):
             layers.Dense(weights=weights, biases=biases),
             layers.MonitorLayer(),
         ])
-        values = np.random.rand(1, *dim_input)
+        values = np.random.rand(batch_size, *dim_input)
         weight_acc = loihi_model.layers[1].weight_acc
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc
@@ -68,6 +69,7 @@ class TestLayers(unittest.TestCase):
     ])
     def test_conv2d(self, input_dims, weight_dims):
         t_max = 2**8
+        batch_size = 1
         kernel_size = weight_dims[2:]
         weights = (np.random.rand(*weight_dims)-0.5) / 4
         biases = (np.random.rand(weight_dims[0])-0.5) / 2 # np.zeros((weight_dims[0])) # 
@@ -78,9 +80,8 @@ class TestLayers(unittest.TestCase):
             layers.MonitorLayer(),
         ])
 
-        values = np.random.rand(np.product(input_dims)) / 2
+        values = np.random.rand(batch_size, *input_dims) / 2
         quantized_values = (values*t_max).round()/t_max
-        quantized_values = quantized_values.reshape(*input_dims)
         weight_acc = loihi_model.layers[1].weight_acc
         quantized_weights = (weight_acc*weights).round()/weight_acc
         quantized_biases = (biases*t_max).round()/t_max
@@ -105,6 +106,7 @@ class TestLayers(unittest.TestCase):
     ])
     def test_maxpool2d(self, input_dims):
         t_max = 2**8
+        batch_size = 1
         input_dims = (1,10,10)
         kernel_size = [2,2]
 
@@ -133,7 +135,7 @@ class TestLayers(unittest.TestCase):
         ((3,6,6), (10,3,5,5)),
     ])
     def test_convpool2d(self, input_dims, weight_dims):
-        t_max = 2**8
+        t_max = 2**9
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
