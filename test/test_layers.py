@@ -170,10 +170,11 @@ class TestLayers(unittest.TestCase):
         model_output = model(torch.tensor(values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
         
         loihi_output = loihi_model(values, t_max).reshape(model_output.shape)
-        #loihi_output1 = loihi_model1(values, t_max).reshape(model_output.shape)
+        loihi_output1 = loihi_model1(values, t_max).reshape(model_output.shape)
         
+        self.assertTrue(all(loihi_output.flatten() == loihi_output1.flatten()))
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
-        print(output_combinations)
+        #print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)

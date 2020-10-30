@@ -168,7 +168,7 @@ class ConvPool2D(Layer):
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
                 calc_neuron = Neuron(name=self.name + "calc-n{0:3.0f}".format(i), loihi_type=Neuron.acc)
                 conv_neurons += [calc_neuron]
-                trigger_block.output_neurons()[output_channel].connect_to(calc_neuron, self.weight_acc, self.t_min)
+                trigger_block.output_neurons()[output_channel].connect_to(calc_neuron, self.weight_acc)
                 for input_channel in range(input_channels):
                     block_patch = np.array(input_blocks)[patches[input_channel,i,:,:].flatten()]
                     patch_weights = self.weights[output_channel,input_channel,:,:].flatten()

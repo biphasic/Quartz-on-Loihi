@@ -12,7 +12,7 @@ import collections
 
 class TestMultiLayer(unittest.TestCase):
     @parameterized.expand([
-        #((1,10,1,), 10, 10),
+        ((1,10,1,), 10, 10),
         ((1,120,1,), 84, 10),
     ])
     def test_2fc(self, input_dims, l1_output_dim, l2_output_dim):
@@ -143,7 +143,7 @@ class TestMultiLayer(unittest.TestCase):
         ((8, 5, 5), (120,8,5,5), 84),
     ])
     def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
-        t_max = 2**8
+        t_max = 2**9
         batch_size = 1
         conv_kernel_size = conv_weight_dims[2:]
         conv_out_dim = conv_weight_dims[0]
