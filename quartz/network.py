@@ -212,10 +212,14 @@ class Network:
                                           connectionMask=np.array([[1],[0],[0]]))
             input_spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=input_spikes)
             n_inputs += 1
-        assert len(input_layer.blocks) == n_inputs + 1
-        input_spike_generator.connect(input_layer.blocks[-1].loihi_group, prototype=connection_prototype, 
-                                      weight=np.array([[input_layer.weight_acc//2],[0],[0]]),
-                                          connectionMask=np.array([[1],[0],[0]]))
+        first_layer = self.layers[1]
+        if isinstance(first_layer, quartz.layers.ConvPool2D):
+            n_neurons = len(first_layer.blocks[0].neurons)
+            weights = np.array([[first_layer.weight_e]]*n_neurons)
+            connectionMask = np.zeros_like(weights)
+            connectionMask[0] = 1
+            input_spike_generator.connect(first_layer.blocks[0].loihi_group, prototype=connection_prototype, 
+                                          weight=weights, connectionMask=connectionMask)
         return net
 
     def compile_net(self, net):

@@ -132,7 +132,8 @@ class TestLayers(unittest.TestCase):
             
     @parameterized.expand([
         ((1,8,8), (3,1,3,3)),
-        ((3,6,6), (10,3,5,5)),
+        ((3,6,6), (6,3,5,5)),
+        ((2,4,4), (4,2,3,3)),
     ])
     def test_convpool2d(self, input_dims, weight_dims):
         t_max = 2**9

@@ -192,15 +192,15 @@ class ConvMax(Block):
 class Trigger(Block):
     def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
+        guard = Neuron(name=self.name + "guard", parent=self)
         start_neuron = Neuron(name=self.name + "acc1", loihi_type=Neuron.acc, parent=self)
-        delay_neuron = Neuron(name=self.name + "acc2", loihi_type=Neuron.acc, parent=self)
-        self.neurons += [start_neuron, delay_neuron]
+        self.neurons += [guard, start_neuron]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        start_neuron.connect_to(delay_neuron, weight_acc)
+        guard.connect_to(start_neuron, weight_acc, 0)
+        guard.connect_to(guard, -2*weight_e)
         start_neuron.connect_to(start_neuron, -weight_acc)
-        delay_neuron.connect_to(delay_neuron, -weight_acc)
         
         for t in range(number):
             trigger_neuron = Neuron(name=self.name + "neuron", type=Neuron.output, parent=self)
-            delay_neuron.connect_to(trigger_neuron, weight_e)
+            start_neuron.connect_to(trigger_neuron, weight_e)
             self.neurons += [trigger_neuron]
