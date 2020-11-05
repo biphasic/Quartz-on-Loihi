@@ -27,8 +27,8 @@ class TestFunctionality(unittest.TestCase):
         quantized_biases = (biases*t_max).round()/t_max
         ideal_output = np.maximum(quantized_biases.flatten(), 0)
         loihi_output = loihi_model(values, t_max)
-        self.assertEqual(len(loihi_output), len(quantized_biases.flatten()))
-        self.assertTrue(all(loihi_output == ideal_output))
+        self.assertEqual(len(loihi_output.flatten()), len(quantized_biases.flatten()))
+        self.assertTrue(all(loihi_output.flatten() == ideal_output.flatten()))
 
 
     @parameterized.expand([
