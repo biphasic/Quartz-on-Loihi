@@ -24,25 +24,28 @@ class Network:
         for i in range(1, len(layers)): # skip input layer
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, inputs, t_max, steps_per_image=0, profiling=False, partition='loihi'):
+    def __call__(self, inputs, t_max, steps_per_image=0, profiling=False, logging=False, partition='loihi'):
         input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         assert np.log2(t_max).is_integer()
         self.data = []
         self.t_max = t_max
         # monitor output layer and setup probes
-        output_probe = quartz.probe(self.layers[-1])
+        if not profiling:
+            output_probe = quartz.probe(self.layers[-1])
         self.set_probe_t_max()
         # create and connect compartments and add input spikes
         board = self.build_model(input_spike_list)
         # use reset snip in case of multiple samples
+        print("batch_size: {}".format(batch_size))
         if batch_size > 1:
             board = self.add_snips(board)
         # execute
-        self.run_on_loihi(board, steps_per_image, batch_size, profiling, partition)
-        self.data = output_probe.output()
-        # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
-        return np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
+        self.run_on_loihi(board, steps_per_image, batch_size, profiling, logging, partition)
+        if not profiling:
+            self.data = output_probe.output()
+            # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
+            return np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
     
     def build_model(self, input_spike_list):
         net = nx.NxNet()
@@ -99,7 +102,7 @@ class Network:
             if i == 0:
                 max_n_comps = 250
             else:
-                max_n_comps = 220
+                max_n_comps = 400
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
@@ -237,14 +240,15 @@ class Network:
             phase=Phase.EMBEDDED_MGMT)
         return board
     
-    def run_on_loihi(self, board, steps_per_image, n_samples, profiling, partition):
-        set_verbosity(LoggingLevel.ERROR)
+    def run_on_loihi(self, board, steps_per_image, batch_size, profiling, logging, partition):
+        if not logging:
+            set_verbosity(LoggingLevel.ERROR)
         if steps_per_image == 0:
             run_time = int(len(self.layers)*3*self.t_max)
         else:
-            run_time = steps_per_image * n_samples
+            run_time = steps_per_image * batch_size
         if profiling:
-            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=1024, binSize=2)
+            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=512, binSize=100)
             eProbe = board.probe(ProbeParameter.ENERGY, pc)
         board.run(run_time, partition=partition)
         board.disconnect()

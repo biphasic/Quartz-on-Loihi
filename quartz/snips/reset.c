@@ -16,7 +16,7 @@ void logicalToPhysicalCoreId(int logicalId, CoreId *physicalId) {
 }
 
 int doReset(runState *s) {
-    if(s->time_step%2500 == 0){
+    if(s->time_step%1600 == 0){
         return 1;
     }
     return 0;
