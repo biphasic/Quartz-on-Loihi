@@ -45,7 +45,14 @@ class Network:
         if not profiling:
             self.data = output_probe.output()
             # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
-            return np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
+            output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
+            last_layer = self.layers[-2]
+            if isinstance(last_layer, quartz.layers.Dense):
+                output_array = output_array.reshape(last_layer.output_dims, batch_size).T
+            else: # if isinstance(last_layer, quartz.layers.Conv2D):
+                output_array = output_array.reshape(*last_layer.output_dims, batch_size)
+                output_array = np.transpose(output_array, (3,0,1,2))
+            return output_array
     
     def build_model(self, input_spike_list):
         net = nx.NxNet()

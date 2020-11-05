@@ -57,8 +57,8 @@ class TestLayers(unittest.TestCase):
         model_output = model(torch.tensor(quantized_values.flatten())).detach().numpy()
         loihi_output = loihi_model(values, t_max)
         
-        self.assertEqual(len(loihi_output), len(model_output.flatten()))
-        combinations = list(zip(loihi_output, model_output.flatten()))
+        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         for (out, ideal) in combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
@@ -92,8 +92,8 @@ class TestLayers(unittest.TestCase):
         model_output = model(torch.tensor(quantized_values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
         loihi_output = loihi_model(values, t_max)
         
-        self.assertEqual(len(loihi_output), len(model_output.flatten()))
-        output_combinations = list(zip(loihi_output, model_output.flatten()))
+        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
@@ -124,8 +124,8 @@ class TestLayers(unittest.TestCase):
         model_output = model(torch.tensor(quantized_values.reshape(1, *input_dims[:3]))).squeeze().detach().numpy()
         loihi_output = loihi_model(values, t_max)
 
-        self.assertEqual(len(loihi_output), len(model_output.flatten()))
-        output_combinations = list(zip(loihi_output, model_output.flatten()))
+        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         for (out, ideal) in output_combinations:
             self.assertEqual(out, ideal)
 
