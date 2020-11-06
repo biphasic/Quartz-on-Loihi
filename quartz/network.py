@@ -24,13 +24,17 @@ class Network:
         for i in range(1, len(layers)): # skip input layer
             layers[i].connect_from(layers[i-1])
         
-    def __call__(self, inputs, t_max, steps_per_image=0, profiling=False, logging=False, partition='loihi'):
-        input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
+    def __call__(self, inputs, t_max, steps_per_image=None, profiling=False, logging=False, partition='loihi'):
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
+        if steps_per_image == None: steps_per_image = int(len(self.layers)*2*t_max)
+        run_time = steps_per_image*batch_size
+        input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
         assert np.log2(t_max).is_integer()
         self.data = []
         self.t_max = t_max
         self.steps_per_image = steps_per_image
+        if not logging:
+            set_verbosity(LoggingLevel.ERROR)
         # monitor output layer and setup probes
         if not profiling:
             output_probe = quartz.probe(self.layers[-1])
@@ -38,11 +42,10 @@ class Network:
         # create and connect compartments and add input spikes
         board = self.build_model(input_spike_list)
         # use reset snip in case of multiple samples
-        print("batch_size: {}".format(batch_size))
         if batch_size > 1:
             board = self.add_snips(board)
         # execute
-        self.run_on_loihi(board, steps_per_image, batch_size, profiling, logging, partition)
+        self.run_on_loihi(board, run_time, profiling, partition)
         if not profiling:
             self.data = output_probe.output()
             # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
@@ -262,13 +265,7 @@ class Network:
         init_channel.write(1, [self.steps_per_image])
         return board
     
-    def run_on_loihi(self, board, steps_per_image, batch_size, profiling, logging, partition):
-        if not logging:
-            set_verbosity(LoggingLevel.ERROR)
-        if steps_per_image == 0:
-            run_time = int(len(self.layers)*3*self.t_max)
-        else:
-            run_time = steps_per_image * batch_size
+    def run_on_loihi(self, board, run_time, profiling, partition):
         if profiling:
             pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=512, binSize=100)
             eProbe = board.probe(ProbeParameter.ENERGY, pc)
