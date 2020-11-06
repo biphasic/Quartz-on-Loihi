@@ -181,3 +181,7 @@ class TestLayers(unittest.TestCase):
         #print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+                
+        output_combinations = list(zip(loihi_output.flatten(), loihi_output1.flatten()))
+        for (out, ideal) in output_combinations:
+            self.assertAlmostEqual(out, ideal, places=3)

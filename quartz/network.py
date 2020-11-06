@@ -30,6 +30,7 @@ class Network:
         assert np.log2(t_max).is_integer()
         self.data = []
         self.t_max = t_max
+        self.steps_per_image = steps_per_image
         # monitor output layer and setup probes
         if not profiling:
             output_probe = quartz.probe(self.layers[-1])
@@ -109,7 +110,7 @@ class Network:
             if i == 0:
                 max_n_comps = 250
             else:
-                max_n_comps = 400
+                max_n_comps = 400 # 220
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
@@ -238,6 +239,15 @@ class Network:
         
     def add_snips(self, board):
         snip_dir = os.getcwd() + "/quartz/snips"
+        
+        init_snip = board.createSnip(
+            name='init-reset',
+            includeDir=snip_dir,
+            cFilePath=snip_dir + "/init.c",
+            funcName='set_init_values',
+            guardName=None,
+            phase=Phase.EMBEDDED_INIT)
+        
         reset_snip = board.createSnip(
             name="batch-reset",
             includeDir=snip_dir,
@@ -245,6 +255,11 @@ class Network:
             funcName="reset",
             guardName="doReset", 
             phase=Phase.EMBEDDED_MGMT)
+        
+        init_channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
+        init_channel.connect(None, init_snip)
+        board.start()
+        init_channel.write(1, [self.steps_per_image])
         return board
     
     def run_on_loihi(self, board, steps_per_image, batch_size, profiling, logging, partition):

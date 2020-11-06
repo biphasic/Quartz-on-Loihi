@@ -290,6 +290,14 @@ class TestMultiLayer(unittest.TestCase):
             layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
             layers.MonitorLayer(),
         ])
+        loihi_model1 = quartz.Network([
+            layers.InputLayer(dims=input_dims),
+            layers.Conv2D(weights=weights1, biases=biases1),
+            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride),
+            layers.Conv2D(weights=weights2, biases=biases2),
+            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride),
+            layers.MonitorLayer(),
+        ])
         values = np.random.rand(batch_size, *input_dims) / 3
         quantized_values = (values*t_max).round()/t_max
         weight_acc = loihi_model.layers[1].weight_acc
@@ -310,12 +318,17 @@ class TestMultiLayer(unittest.TestCase):
         model[4].bias = nn.Parameter(torch.tensor(quantized_biases2))
         model_output = model(torch.tensor(quantized_values)).detach().numpy()
         loihi_output = loihi_model(values, t_max)
+        loihi_output1 = loihi_model1(values, t_max)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        self.assertEqual(len(loihi_output.flatten()), len(loihi_output1.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+        output_combinations = list(zip(loihi_output.flatten(), loihi_output1.flatten()))
+        for (out, ideal) in output_combinations:
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=3)
 
 
     def test_convpool_conv(self):

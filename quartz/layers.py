@@ -322,6 +322,7 @@ class MonitorLayer(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.prev_layer = prev_layer
         self.name = "l{}-{}".format(self.layer_n, self.name)
+        self.output_dims = prev_layer.output_dims
         
         for i, block in enumerate(prev_layer.output_blocks()):
             monitor = quartz.blocks.Block(name=block.name+"monitor", type=Block.output, monitor=self.monitor, parent_layer=self)
