@@ -79,10 +79,11 @@ class InputLayer(Layer):
 
 
 class Dense(Layer):
-    def __init__(self, weights, biases, name="dense:", **kwargs):
+    def __init__(self, weights, biases, rectifying=True, name="dense:", **kwargs):
         super(Dense, self).__init__(name=name, **kwargs)
         self.weights = weights.copy()
         self.biases = biases
+        self.rectifying = rectifying
         self.output_dims = weights.shape[0]
 #         self.weight_scaling = 2**math.floor(np.log2(1/abs(weights).max())) # can only scale by power of 2
 #         if self.weight_scaling > 2: self.weight_scaling = 2
@@ -103,8 +104,12 @@ class Dense(Layer):
             assert weights.shape[0] == biases.shape[0]
         if self.weight_e < 30: self.weight_e *= 8
         for i in range(self.output_dims):
-            relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
-                                        monitor=self.monitor, parent_layer=self)
+            if self.rectifying:
+                relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
+                                            monitor=self.monitor, parent_layer=self)
+            else:
+                relco = quartz.blocks.Output(name=self.name+"output-n{1:3.0f}:".format(self.layer_n, i), 
+                                            monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
                 delay = 5 if weight > 0 else 0

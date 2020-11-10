@@ -188,7 +188,7 @@ class ConvMax(Block):
             first.connect_to(neuron, -weight_acc)
             neuron.parent_block = self
 
-        
+
 class Trigger(Block):
     def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
@@ -196,7 +196,7 @@ class Trigger(Block):
         start_neuron = Neuron(name=self.name + "acc1", loihi_type=Neuron.acc, parent=self)
         self.neurons += [guard, start_neuron]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        guard.connect_to(start_neuron, weight_acc, 0)
+        guard.connect_to(start_neuron, weight_acc, 5)
         guard.connect_to(guard, -2*weight_e)
         start_neuron.connect_to(start_neuron, -weight_acc)
         
@@ -204,3 +204,24 @@ class Trigger(Block):
             trigger_neuron = Neuron(name=self.name + "neuron", type=Neuron.output, parent=self)
             start_neuron.connect_to(trigger_neuron, weight_e)
             self.neurons += [trigger_neuron]
+
+
+class Output(Block):
+    def __init__(self, name="output:", type=Block.output, **kwargs):
+        super(Output, self).__init__(name=name, type=type, **kwargs)
+        calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
+        sync = Neuron(name=name + "sync", type=Neuron.input, parent=self)
+        delay = Neuron(name=name + "delay", loihi_type=Neuron.acc, parent=self)
+        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
+        second = Neuron(name=name + "2nd", loihi_type=Neuron.acc, type=Neuron.output, parent=self)
+        self.neurons = [calc, sync, delay, first, second]
+
+        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        sync.connect_to(calc, weight_acc)
+        sync.connect_to(delay, weight_acc)
+        delay.connect_to(second, weight_acc)
+        delay.connect_to(delay, -weight_acc)
+        calc.connect_to(first, weight_e)
+        calc.connect_to(calc, -weight_acc)
+        first.connect_to(first, -3.1*weight_e)
+        second.connect_to(second, -weight_acc)
