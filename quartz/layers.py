@@ -296,7 +296,7 @@ class MaxPool2D(Layer):
             # pick only patches that are interesting (stride)
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *kernel_size, patches.shape[-1])
             for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
-                maxpool = quartz.blocks.MaxPooling(name="pool-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
+                maxpool = quartz.blocks.WTA(name="pool-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                 block_patch = np.array(input_blocks)[patches[i,:,:,:].flatten()]
                 n_inputs = len(block_patch)
                 for block in block_patch:

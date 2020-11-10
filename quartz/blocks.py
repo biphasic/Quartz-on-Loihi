@@ -159,9 +159,9 @@ class ReLCo(Block):
         first.connect_to(first, -weight_e)
 
 
-class MaxPooling(Block):
+class WTA(Block):
     def __init__(self, name="pool:", type=Block.output, **kwargs):
-        super(MaxPooling, self).__init__(name=name, type=type, **kwargs)
+        super(WTA, self).__init__(name=name, type=type, **kwargs)
         sync = Neuron(name=name + "sync", parent=self)
         first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
         output = Neuron(type=Neuron.output, name=name + "2nd", parent=self)
