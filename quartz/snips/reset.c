@@ -37,7 +37,7 @@ void reset(runState *RunState) {
         nx_fast_init64(nc->cx_state, numNeuronsPerCore, *(uint64_t*)&cxs);
     }
         
-    LOG("Done resetting cx_state. %d\n", RunState->time_step);
+   // LOG("Done resetting cx_state. %d\n", RunState->time_step);
     
     for(int i=0; i<numCores; i++) {
         logicalToPhysicalCoreId(i, &coreId);
@@ -45,5 +45,5 @@ void reset(runState *RunState) {
         nx_fast_init32(nc->dendrite_accum, 8192, 0);
     }
 
-    LOG("Done resetting dendrite_accum. %d\n", RunState->time_step);
+    LOG("Done resetting cx_state and dendrite_accum. %d\n", RunState->time_step);
 }

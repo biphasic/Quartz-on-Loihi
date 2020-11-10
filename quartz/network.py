@@ -50,12 +50,12 @@ class Network:
             self.data = output_probe.output()
             # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
             output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
-            last_layer = self.layers[-2]
-            if isinstance(last_layer, quartz.layers.Dense):
-                output_array = output_array.reshape(last_layer.output_dims, batch_size).T
-            else: # if isinstance(last_layer, quartz.layers.Conv2D):
-                output_array = output_array.reshape(*last_layer.output_dims, batch_size)
-                output_array = np.transpose(output_array, (3,0,1,2))
+#             last_layer = self.layers[-2]
+#             if isinstance(last_layer, quartz.layers.Dense):
+#                 output_array = output_array.reshape(last_layer.output_dims, batch_size).T
+#             else: # if isinstance(last_layer, quartz.layers.Conv2D):
+#                 output_array = output_array.reshape(*last_layer.output_dims, batch_size)
+#                 output_array = np.transpose(output_array, (3,0,1,2))
             return output_array
     
     def build_model(self, input_spike_list):
@@ -107,21 +107,21 @@ class Network:
 
     def check_layout(self):
         self.core_ids = np.zeros((128))
-        core_id = 0
+        core_id = -1 # 0
         self.compartments_on_core = np.zeros((128))
-        for i, layer in enumerate(self.layers):
-            if i == 0:
-                max_n_comps = 250
-            else:
-                max_n_comps = 220 # 400 # 
-            self.core_ids[core_id] = i
-            for block in layer.blocks:
-                if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
-                    core_id += 1
-                    self.core_ids[core_id] = i
-                block.core_id = core_id
-                self.compartments_on_core[core_id] += len(block.neurons)
-            core_id += 1
+#         for i, layer in enumerate(self.layers):
+#             if i == 0:
+#                 max_n_comps = 250
+#             else:
+#                 max_n_comps = 400 # 220 # 
+#             self.core_ids[core_id] = i
+#             for block in layer.blocks:
+#                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
+#                     core_id += 1
+#                     self.core_ids[core_id] = i
+#                 block.core_id = core_id
+#                 self.compartments_on_core[core_id] += len(block.neurons)
+#             core_id += 1
         self.layout_complete = True
         
     def create_compartments(self):
@@ -185,7 +185,6 @@ class Network:
 #                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
 #                         proto_map[0,1] = 1
 #                         proto_map[0,2] = 2
-                        #ipdb.set_trace()
                     weights = weights.round()
                     #weights[weights>255] = 255
                     #weights[weights<-255] = -255
