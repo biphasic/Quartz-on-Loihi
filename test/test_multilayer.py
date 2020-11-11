@@ -4,16 +4,14 @@ import unittest
 import numpy as np
 import ipdb
 from parameterized import parameterized
-from sklearn.feature_extraction import image
 import torch
 import torch.nn as nn
-import collections
 
 
 class TestMultiLayer(unittest.TestCase):
     @parameterized.expand([
         ((1,1,10,1,), 10, 10),
-        ((5,1,120,1,), 84, 10),
+        ((50,1,120,1,), 84, 10),
     ])
     def test_2fc(self, input_dims, l1_output_dim, l2_output_dim):
         t_max = 2**8
@@ -58,7 +56,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,7,7), (6,1,5,5), (100,6,3,3)),
-        ((2,1,7,7), (6,1,5,5), (100,6,3,3)),
+        ((100,1,7,7), (6,1,5,5), (100,6,3,3)),
     ])
     def test_2conv2d(self, input_dims, conv_weight_dims1, conv_weight_dims2):
         t_max = 2**8
@@ -107,7 +105,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,12,12), (3,3), (2,2)),
-        ((5,1,12,12), (3,3), (2,2)),
+        ((100,1,12,12), (3,3), (2,2)),
     ])
     def test_2maxpool(self, input_dims, kernel_size1, kernel_size2):
         t_max = 2**8
@@ -138,8 +136,8 @@ class TestMultiLayer(unittest.TestCase):
 
 
     @parameterized.expand([
-        #((1,6,3,3), (100,6,3,3), 10),
-        ((5,8,5,5), (120,8,5,5), 84),
+        ((1,6,3,3), (100,6,3,3), 10),
+        ((100,8,5,5), (120,8,5,5), 84),
     ])
     def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
         t_max = 2**9
@@ -185,8 +183,8 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,10,10), (6,1,3,3)),
-        ((5,1,28,28), (4,1,5,5)),
-        ((5,4,14,14), (6,4,5,5)),
+        ((10,1,28,28), (4,1,5,5)),
+        ((100,4,14,14), (6,4,5,5)),
     ])
     def test_conv_maxpool_2d(self, input_dims, weight_dims):
         t_max = 2**9
@@ -227,7 +225,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,10,10), (6,1,5,5)),
-        ((5,3,24,24), (8,3,5,5)),
+        ((50,3,24,24), (8,3,5,5)),
     ])
     def test_maxpool_conv(self, input_dims, weight_dims):
         t_max = 2**9
@@ -264,10 +262,11 @@ class TestMultiLayer(unittest.TestCase):
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
 
-    def test_2convpool(self):
-        input_dims = (1,1,14,14)
-        weight_dims = ( 3,1,3,3)
-        weight_dims2 = (5,3,3,3)
+    @parameterized.expand([
+        ((1,1,14,14), (3,1,3,3), (5,3,3,3)),
+        ((100,1,14,14), (3,1,3,3), (5,3,3,3)),
+    ])
+    def test_2convpool(self, input_dims, weight_dims, weight_dims2):
         t_max = 2**8
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
@@ -326,10 +325,11 @@ class TestMultiLayer(unittest.TestCase):
             self.assertEqual(out, ideal)
 
 
-    def test_convpool_conv(self):
-        input_dims = (1,1,16,16)
-        weight_dims = ( 2,1,3,3)
-        weight_dims2 = (4,2,3,3)
+    @parameterized.expand([
+        ((1,1,16,16), (2,1,3,3), (4,2,3,3)),
+        ((100,1,16,16), (2,1,3,3), (4,2,3,3)),
+    ])
+    def test_convpool_conv(self, input_dims, weight_dims, weight_dims2):
         t_max = 2**8
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]

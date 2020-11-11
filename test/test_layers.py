@@ -27,8 +27,8 @@ class TestLayers(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,10,10,), 10),
-        ((5,1,120,1,), 84),
-        ((5,1,84,1,), 10),
+        ((50,1,120,1,), 84),
+        ((500,1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**8
@@ -64,7 +64,7 @@ class TestLayers(unittest.TestCase):
 
     @parameterized.expand([
         ((1, 3, 8, 8), (  5, 3,2,2)),
-        ((5,10, 5, 5), (120,10,5,5)),
+        ((50,10, 5, 5), (120,10,5,5)),
     ])
     def test_conv2d(self, input_dims, weight_dims):
         t_max = 2**8
@@ -99,8 +99,8 @@ class TestLayers(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,10,10,),),
-        ((5,6,28,28,),),
-        ((5,16,10,10,),),
+        ((50,6,28,28,),),
+        ((500,16,10,10,),),
     ])
     def test_maxpool2d(self, input_dims):
         t_max = 2**8
@@ -129,8 +129,8 @@ class TestLayers(unittest.TestCase):
             
     @parameterized.expand([
         ((1,1,8,8), (3,1,3,3)),
-        ((5,3,6,6), (6,3,5,5)),
-        ((5,2,4,4), (4,2,3,3)),
+        ((50,3,6,6), (6,3,5,5)),
+        ((500,2,4,4), (4,2,3,3)),
     ])
     def test_convpool2d(self, input_dims, weight_dims):
         t_max = 2**9
