@@ -168,16 +168,16 @@ class Network:
                 target_block = target.loihi_group
                 for source in target.get_connected_blocks():
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
+                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
+#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
+#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
                     source_block = source.loihi_group
                     weights, delays, mask = source.get_connection_matrices_to(target)
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
-                    if source == target and isinstance(target, quartz.blocks.ReLCo): 
-                        proto_map[0,2] = 2
-                        proto_map[0,0] = 3
+#                     if source == target and isinstance(target, quartz.blocks.ReLCo): 
+#                         proto_map[0,2] = 2
+#                         proto_map[0,0] = 3
                     ok = source
 #                     if "split-bias" in source.name and isinstance(target, quartz.blocks.ReLCo):
 #                         conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
@@ -185,7 +185,6 @@ class Network:
 #                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
 #                         proto_map[0,1] = 1
 #                         proto_map[0,2] = 2
-                        #ipdb.set_trace()
                     weights = weights.round()
                     #weights[weights>255] = 255
                     #weights[weights<-255] = -255
