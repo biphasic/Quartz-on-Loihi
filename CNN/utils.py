@@ -57,15 +57,65 @@ def validate(valid_loader, model, criterion, device):
     epoch_loss = running_loss / len(valid_loader.dataset)
     return model, epoch_loss
 
-
 def get_weights_biases(model):
+    parameters = list(model.parameters())
+    weights = [weight for weight in parameters[::2][::2]]
+    biases = [bias for bias in parameters[1::2][::2]]
+    return weights, biases
+
+# def get_weights_biases(model):
+#     weights = []
+#     weights.append(model.conv1.weight)
+#     weights.append(model.conv2.weight)
+#     weights.append(model.conv3.weight)
+#     weights.append(model.fc1.weight)
+#     biases = []
+#     biases.append(model.bn1.bias)
+#     biases.append(model.bn2.bias)
+#     biases.append(model.bn3.bias)
+#     biases.append(model.fc1.bias)
+#     return weights, biases
+
+def get_all_weights_biases(model):
     parameters = list(model.parameters())
     weights = [weight for weight in parameters[::2]]
     biases = [bias for bias in parameters[1::2]]
     return weights, biases
 
-def biggest_weight(model):
+def biggest_abs_weight(model):
     weights, biases = get_weights_biases(model)
     max_weight = torch.cat([weight.flatten() for weight in weights]).abs().max()
     max_bias = torch.cat([bias.flatten() for bias in biases]).abs().max()
     print("biggest weight={0:.3f} and bias={1:.3f}".format(max_weight, max_bias))
+    
+def get_folded_weights_biases(model):
+    weights = []
+    biases = []
+    w1, b1 = fold_weight_bias(model.conv1, model.bn1)
+    w2, b2 = fold_weight_bias(model.conv2, model.bn2)
+    w3, b3 = fold_weight_bias(model.conv3, model.bn3)
+    w4, b4 = model.fc1.weight, model.fc1.bias
+    return [w1,w2,w3,w4], [b1,b2,b3,b4]
+    
+def fold_weight_bias(conv, bn):
+    w = conv.weight
+    mean = bn.running_mean
+    var_sqrt = torch.sqrt(bn.running_var + bn.eps)
+    beta = bn.weight
+    gamma = bn.bias
+    if conv.bias is not None:
+        b = conv.bias
+    else:
+        b = mean.new_zeros(mean.shape)
+    w = w * (beta / var_sqrt).reshape([conv.out_channels, 1, 1, 1])
+    b = (b - mean)/var_sqrt * beta + gamma
+    return w, b
+    fused_conv = nn.Conv2d(conv.in_channels,
+                         conv.out_channels,
+                         conv.kernel_size,
+                         conv.stride,
+                         conv.padding,
+                         bias=True)
+    fused_conv.weight = nn.Parameter(w)
+    fused_conv.bias = nn.Parameter(b)
+    return fused_conv
