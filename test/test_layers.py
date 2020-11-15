@@ -100,7 +100,7 @@ class TestLayers(unittest.TestCase):
     @parameterized.expand([
         ((1,1,10,10,),),
         ((50,6,28,28,),),
-        ((500,16,10,10,),),
+        ((200,16,10,10,),),
     ])
     def test_maxpool2d(self, input_dims):
         t_max = 2**8
@@ -113,7 +113,6 @@ class TestLayers(unittest.TestCase):
         ])
 
         np.random.seed(seed=45)
-        #values = np.random.rand(np.product(input_dims[1:]))
         values = np.random.rand(*input_dims)
         quantized_values = (values*t_max).round()/t_max
 
