@@ -52,7 +52,8 @@ class Network:
             output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
             last_layer = self.layers[-2]
             if isinstance(last_layer, quartz.layers.Dense):
-                output_array = output_array.reshape(last_layer.output_dims, batch_size).T
+                if last_layer.rectifying: # False: # 
+                    output_array = output_array.reshape(last_layer.output_dims, batch_size).T
             else: # if isinstance(last_layer, quartz.layers.Conv2D):
                 output_array = output_array.reshape(*last_layer.output_dims, batch_size)
                 output_array = np.transpose(output_array, (3,0,1,2))
@@ -84,8 +85,8 @@ class Network:
     def n_parameters(self):
         return sum([layer.n_parameters() for layer in self.layers])
     
-    def n_connections(self):
-        return sum([layer.n_connections() for layer in self.layers])
+    def n_outgoing_connections(self):
+        return sum([layer.n_outgoing_connections() for layer in self.layers])
     
     def check_block_delays(self, numDendriticAccumulators):
         for layer in self.layers:
@@ -111,9 +112,13 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         for i, layer in enumerate(self.layers):
             if i == 0:
+                max_n_comps = 200
+            elif i == 4:
                 max_n_comps = 250
+            elif i == 5:
+                max_n_comps = 70
             else:
-                max_n_comps = 220 # 400 # 
+                max_n_comps = 130 # 380 # 
             self.core_ids[core_id] = i
             for block in layer.blocks:
                 if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
@@ -282,7 +287,7 @@ class Network:
     def __repr__(self):
         print("name     \tn_comp \tn_param n_conn")
         print("-------------------------------------")
-        print('\n'.join(["{}    \t{}  \t{}  \t{}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
-                                                         layer.n_connections()) for layer in self.layers]))
+        print('\n'.join(["{:11s}\t{:5d}\t{:6d}\t{:6d}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
+                                                         layer.n_outgoing_connections()) for layer in self.layers]))
         print("-------------------------------------")
-        return "total   \t{}  \t{}  \t{}".format(self.n_compartments(), self.n_parameters(), self.n_connections())
+        return "total   \t{}  \t{}  \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections())

@@ -46,8 +46,11 @@ class Layer:
         if self.biases is not None: n_params += np.product(self.biases.shape)
         return n_params
     
-    def n_connections(self):
-        return sum([block.n_connections() for block in self.blocks])
+    def n_outgoing_connections(self):
+        return sum([block.n_outgoing_connections() for block in self.blocks])
+    
+    def n_incoming_connections(self):
+        return sum([block.n_incoming_connections() for block in self.blocks])
 
     def check_block_delays(self, t_max, numDendriticAccumulators):
         for block in self.blocks:

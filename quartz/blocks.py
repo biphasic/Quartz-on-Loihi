@@ -47,8 +47,11 @@ class Block:
     def n_compartments(self):
         return len(self.neurons)
 
-    def n_connections(self):
+    def n_outgoing_connections(self):
         return sum([len(neuron.synapses['post']) for neuron in self.neurons])
+    
+    def n_incoming_connections(self):
+        return sum([len(neuron.synapses['pre']) for neuron in self.neurons])
 
     def get_params_at_once(self):
         return self.parent_layer.get_params_at_once()
