@@ -15,8 +15,8 @@ void logicalToPhysicalCoreId(int logicalId, CoreId *physicalId) {
     physicalId->y = (logicalId - physicalId->x*4*(NUM_Y_TILES-1))/4 + 1;
 }
 
-int doReset(runState *s) {
-    if(s->time_step%resetInterval == 0){
+int doReset(runState *RunState) {
+    if(RunState->time_step % resetInterval == 0){
         return 1;
     }
     return 0;
