@@ -9,7 +9,7 @@ class ConvNet(nn.Module):
         super(ConvNet, self).__init__()
         drop = 0.05
         conv_bias = True
-        l1_n_channels = 8
+        l1_n_channels = 6
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=l1_n_channels, kernel_size=5, stride=1, bias=conv_bias)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.drop1 = nn.Dropout2d(0.5*drop)

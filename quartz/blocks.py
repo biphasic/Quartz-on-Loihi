@@ -48,10 +48,22 @@ class Block:
         return len(self.neurons)
 
     def n_outgoing_connections(self):
-        return sum([len(neuron.synapses['post']) for neuron in self.neurons])
+        n_conns = 0
+        for neuron in self.neurons:
+            for synapse in neuron.synapses['pre']:
+                if synapse.pre.parent_block != synapse.post.parent_block: n_conns += 1
+        return n_conns
+        #return sum([len(neuron.synapses['post']) for neuron in self.neurons])
     
     def n_incoming_connections(self):
-        return sum([len(neuron.synapses['pre']) for neuron in self.neurons])
+        return sum([len(neuron.synapses['post']) for neuron in self.neurons])
+    
+    def n_recurrent_connections(self):
+        n_conns = 0
+        for neuron in self.neurons:
+            for synapse in neuron.synapses['pre']:
+                if synapse.pre.parent_block == synapse.post.parent_block: n_conns += 1
+        return n_conns
 
     def get_params_at_once(self):
         return self.parent_layer.get_params_at_once()

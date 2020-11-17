@@ -11,7 +11,7 @@ import torch.nn as nn
 class TestMultiLayer(unittest.TestCase):
     @parameterized.expand([
         ((1,1,10,1,), 10, 10),
-        ((50,1,120,1,), 84, 10),
+        ((50,1,1,10,), 84, 10),
     ])
     def test_2fc(self, input_dims, l1_output_dim, l2_output_dim):
         t_max = 2**8
@@ -51,7 +51,7 @@ class TestMultiLayer(unittest.TestCase):
         combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(combinations)
         for (out, ideal) in combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)#, delta=0.05)
 
 
     @parameterized.expand([

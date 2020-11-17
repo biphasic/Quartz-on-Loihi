@@ -108,22 +108,39 @@ class Network:
 
     def check_layout(self):
         self.core_ids = np.zeros((128))
-        core_id = 0
         self.compartments_on_core = np.zeros((128))
+        n_compartments_per_core = 1024
+        n_incoming_axons_per_core = 4096
+        n_outgoing_axons_per_core = 4096
+        core_id = 0
         for i, layer in enumerate(self.layers):
+#             comps = layer.n_compartments()
+#             comp_limit = comps / n_compartments_per_core
+#             if i == 0:
+#                 conns_in = 1 # layer.n_recurrent_connections()
+#             else:
+#                 conns_in = self.layers[i-1].n_outgoing_connections()
+#             conns_out =  layer.n_outgoing_connections()
+#             conn_in_limit = conns_in / n_incoming_axons_per_core
+#             conn_out_limit = conns_out / n_outgoing_axons_per_core
+#             n_cores = max(comp_limit, conn_in_limit, conn_out_limit)
+#             max_comps_per_core = comps / n_cores
             if i == 0:
-                max_n_comps = 200
-            elif i == 4:
-                max_n_comps = 250
-            elif i == 5:
-                max_n_comps = 70
+                max_comps_per_core = 350
+            elif i == 1:
+                max_comps_per_core = 150
+            elif i == 2:
+                max_comps_per_core = 150
             else:
-                max_n_comps = 130 # 380 # 
-            self.core_ids[core_id] = i
+                max_comps_per_core = 220
             for block in layer.blocks:
-                if self.compartments_on_core[core_id] + len(block.neurons) >= max_n_comps:
+                if core_id >= 127: 
+                    print(self.core_ids)
+                    print(self.compartments_on_core)
+                    raise NotImplementedError("Too many neurons for one Loihi chip")
+                if self.compartments_on_core[core_id] + len(block.neurons) >= max_comps_per_core:
                     core_id += 1
-                    self.core_ids[core_id] = i
+                self.core_ids[core_id] = i
                 block.core_id = core_id
                 self.compartments_on_core[core_id] += len(block.neurons)
             core_id += 1

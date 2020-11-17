@@ -52,6 +52,9 @@ class Layer:
     def n_incoming_connections(self):
         return sum([block.n_incoming_connections() for block in self.blocks])
 
+    def n_recurrent_connections(self):
+        return sum([block.n_recurrent_connections() for block in self.blocks])
+
     def check_block_delays(self, t_max, numDendriticAccumulators):
         for block in self.blocks:
             if isinstance(block, quartz.blocks.ConstantDelay):

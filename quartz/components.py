@@ -28,7 +28,8 @@ class Neuron:
         self.synapses["pre"].append(
             Synapse(pre=self, post=target_neuron, weight=weight, delay=delay)
         )
-        target_neuron.connect_from(self, weight, delay)
+        if self != target_neuron:
+            target_neuron.connect_from(self, weight, delay)
 
     def connect_from(self, source_neuron, weight, delay):
         self.synapses["post"].append(
