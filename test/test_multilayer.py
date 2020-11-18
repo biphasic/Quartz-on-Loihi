@@ -137,7 +137,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,6,3,3), (100,6,3,3), 10),
-        ((100,8,5,5), (120,8,5,5), 84),
+        ((100,8,5,5), (80,8,5,5), 20),
     ])
     def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
         t_max = 2**9
@@ -183,7 +183,7 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,10,10), (6,1,3,3)),
-        ((10,1,28,28), (4,1,5,5)),
+        ((10,1,24,24), (4,1,5,5)),
         ((100,4,14,14), (6,4,5,5)),
     ])
     def test_conv_maxpool_2d(self, input_dims, weight_dims):

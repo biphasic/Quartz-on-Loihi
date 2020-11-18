@@ -21,7 +21,8 @@ class TestLayers(unittest.TestCase):
             layers.MonitorLayer(),
         ])
         self.assertEqual(loihi_model.n_compartments(), 1403)
-        self.assertEqual(loihi_model.n_connections(), 32104)
+        self.assertEqual(loihi_model.n_recurrent_connections(), 1404)
+        self.assertEqual(loihi_model.n_outgoing_connections(), 30700)
         self.assertEqual(loihi_model.n_parameters(), 10100)
 
 
@@ -99,8 +100,8 @@ class TestLayers(unittest.TestCase):
 
     @parameterized.expand([
         ((1,1,10,10,),),
-        ((50,6,28,28,),),
-        ((200,16,10,10,),),
+        ((50,6,24,24,),),
+        ((200,12,8,8,),),
     ])
     def test_maxpool2d(self, input_dims):
         t_max = 2**8

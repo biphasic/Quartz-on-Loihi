@@ -88,6 +88,9 @@ class Network:
     def n_outgoing_connections(self):
         return sum([layer.n_outgoing_connections() for layer in self.layers])
     
+    def n_recurrent_connections(self):
+        return sum([layer.n_recurrent_connections() for layer in self.layers])
+    
     def check_block_delays(self, numDendriticAccumulators):
         for layer in self.layers:
             layer.check_block_delays(self.t_max, numDendriticAccumulators)
