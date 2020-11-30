@@ -65,6 +65,7 @@ class TestLayers(unittest.TestCase):
 
     @parameterized.expand([
         ((1, 3, 8, 8), (  5, 3,2,2)),
+        ((5, 3, 8, 8), (  5, 3,1,1)),
         ((50,10, 5, 5), (120,10,5,5)),
     ])
     def test_conv2d(self, input_dims, weight_dims):
