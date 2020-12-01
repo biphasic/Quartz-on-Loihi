@@ -268,9 +268,9 @@ class Conv2D(Layer):
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                     self.blocks += [relco]
-                    for input_channel in range(g*n_groups_in,(g+1)*n_groups_in):
+                    for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         block_patch = np.array(input_blocks)[patches[input_channel,i,:,:].flatten()]
-                        patch_weights = weights[output_channel,input_channel//self.groups,:,:].flatten()
+                        patch_weights = weights[output_channel,group_weight_index,:,:].flatten()
                         assert len(block_patch) == len(patch_weights)
                         for j, block in enumerate(block_patch):
                             weight = patch_weights[j]

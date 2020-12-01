@@ -66,6 +66,7 @@ class TestLayers(unittest.TestCase):
     @parameterized.expand([
         (( 1, 3,8,8), (  5, 3,2,2), 1),
         (( 1, 4,8,8), (  4, 1,3,3), 4), # depthwise
+        (( 1, 6,4,4), (  6, 2,3,3), 3), # grouped
         (( 5, 3,8,8), (  5, 3,1,1), 1), # pointwise
         ((50,10,5,5), (120,10,5,5), 1),
     ])
