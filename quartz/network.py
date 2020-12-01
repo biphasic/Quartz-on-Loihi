@@ -46,7 +46,9 @@ class Network:
             board = self.add_snips(board)
         # execute
         self.run_on_loihi(board, run_time, profiling, partition)
-        if not profiling:
+        if profiling:
+            return self.energy_probe
+        else:
             self.data = output_probe.output()
             # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
             output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
@@ -283,16 +285,20 @@ class Network:
             guardName="doReset", 
             phase=Phase.EMBEDDED_MGMT)
         
-        init_channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
-        init_channel.connect(None, init_snip)
-        board.start()
-        init_channel.write(1, [self.steps_per_image])
+        self.init_channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
+        self.init_channel.connect(None, init_snip)
         return board
     
     def run_on_loihi(self, board, run_time, profiling, partition):
         if profiling:
-            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=512, binSize=100)
+            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=2048, binSize=self.steps_per_image)
             eProbe = board.probe(ProbeParameter.ENERGY, pc)
+            self.energy_probe = eProbe
+        board.start()
+        try:
+            self.init_channel.write(1, [self.steps_per_image])
+        except:
+            pass
         board.run(run_time, partition=partition)
         board.disconnect()
         if profiling:
