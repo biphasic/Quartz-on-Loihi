@@ -3,97 +3,101 @@ import torch.nn as nn
 from torch.nn import functional as F
 import ipdb
 
-# class InvertedResidual(nn.Module):
-#     def __init__(
-#         self,
-#         inp: int,
-#         oup: int,
-#         stride: int,
-#         expand_ratio: int,
-#     ) -> None:
-#         super(InvertedResidual, self).__init__()
-#         self.stride = stride
-#         assert stride in [1, 2]
 
-#         norm_layer = nn.BatchNorm2d
+class depthwise_separable_conv(nn.Module):
+    def __init__(self, nin, nout):
+        super(depthwise_separable_conv, self).__init__()
+        self.depthwise = nn.Conv2d(nin, nin, kernel_size=3, padding=1, groups=nin)
+        self.pointwise = nn.Conv2d(nin, nout, kernel_size=1)
 
-#         hidden_dim = int(round(inp * expand_ratio))
-#         self.use_res_connect = self.stride == 1 and inp == oup
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+        return out
 
-#         layers: List[nn.Module] = []
-#         if expand_ratio != 1:
-#             # pw
-#             layers.append(ConvBNReLU(inp, hidden_dim, kernel_size=1, norm_layer=norm_layer))
-#         layers.extend([
-#             # dw
-#             ConvBNReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim, norm_layer=norm_layer),
-#             # pw-linear
-#             nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
-#             norm_layer(oup),
-#         ])
-#         self.conv = nn.Sequential(*layers)
+    
+class ConvBNReLU(nn.Sequential):
+    def __init__(self, in_planes: int, out_planes: int, kernel_size: int = 3, stride: int = 1, groups: int = 1):
+        padding = (kernel_size - 1) // 2
+        super(ConvBNReLU, self).__init__(
+            nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False),
+            nn.BatchNorm2d(out_planes),
+            nn.ReLU6(inplace=True)
+        )
+
+
+class InvertedResidual(nn.Module):
+    def __init__(self, expansion_factor, output_channels, repeats, stride):
+        super(InvertedResidual, self).__init__()
+        self.stride = stride
+
+        hidden_dim = int(round(inp * expand_ratio))
+        self.use_res_connect = self.stride == 1 and inp == oup
+
+        layers: List[nn.Module] = []
+        if expand_ratio != 1:
+            # pw
+            layers.append(ConvBNReLU(inp, hidden_dim, kernel_size=1, norm_layer=norm_layer))
+        layers.extend([
+            # dw
+            ConvBNReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim, norm_layer=norm_layer),
+            # pw-linear
+            nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+            norm_layer(oup),
+        ])
+        self.conv = nn.Sequential(*layers)
+
+
+class ConvPool(nn.Module):
+    drop_conv = 0.4
+    conv_bias = False
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1):
+        super(ConvPool, self).__init__()
+        self.conv_pool = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, 
+                      kernel_size=kernel_size, stride=stride, bias=self.conv_bias),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),
+            nn.Dropout2d(self.drop_conv),
+            nn.BatchNorm2d(out_channels),
+        )
+    def forward(self, x):
+        return self.conv_pool(x)
+
         
 class ConvNet(nn.Module):
     def __init__(self, n_classes):
         super(ConvNet, self).__init__()
-        drop_conv = 0.4
         drop_dense = 0.4
-        conv_bias = False
-        l1_n_channels = 32
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=l1_n_channels, kernel_size=3, stride=1, bias=conv_bias)
-        self.pool1 = nn.MaxPool2d(kernel_size=2)
-        self.drop1 = nn.Dropout2d(0.5*drop_conv)
-        self.bn1 = nn.BatchNorm2d(l1_n_channels)
         
-        l2_n_channels = 64
-        self.conv2 = nn.Conv2d(in_channels=l1_n_channels, out_channels=l2_n_channels, kernel_size=4, stride=1, bias=conv_bias)
-        self.pool2 = nn.MaxPool2d(kernel_size=2)
-        self.drop2 = nn.Dropout2d(drop_conv)
-        self.bn2 = nn.BatchNorm2d(l2_n_channels)
+        features = []
+        features.append(ConvPool(in_channels=3, out_channels=32, kernel_size=3, stride=1))
+        features.append(ConvPool(in_channels=32, out_channels=64, kernel_size=4, stride=1))
+        self.features = nn.Sequential(*features)
         
-        l3_n_channels = 200
-        self.conv3 = nn.Conv2d(in_channels=l2_n_channels, out_channels=l3_n_channels, kernel_size=6, stride=1, bias=conv_bias)
-        self.pool3 = nn.MaxPool2d(kernel_size=2)
-        self.drop3 = nn.Dropout2d(drop_dense)
-        self.bn3 = nn.BatchNorm2d(l3_n_channels)
-        
-#         l4_n_channels = 50
-#         self.conv4 = nn.Conv2d(in_channels=l3_n_channels, out_channels=l4_n_channels, kernel_size=4, stride=1, bias=conv_bias)
-#         self.pool4 = nn.MaxPool2d(kernel_size=2)
-#         self.drop4 = nn.Dropout2d(drop)
-#         self.bn4 = nn.BatchNorm2d(l4_n_channels)
+        self.classifier = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=200, kernel_size=6, stride=1, bias=True),
+            nn.ReLU(),
+            nn.BatchNorm2d(200),
+            nn.Flatten(),
+            nn.Linear(in_features=200, out_features=n_classes),
+        )
 
-        #l5_n_channels = 200
-        self.fc1 = nn.Linear(in_features=l3_n_channels, out_features=n_classes)
-        #self.fc1 = nn.Linear(in_features=l3_n_channels, out_features=n_classes)
-
-
-    def forward(self, x):
-        l1_out = self.conv1(x)
-        l1_out = F.relu(l1_out)
-        l1_out = self.bn1(l1_out)
-        l1_out = self.pool1(l1_out)
-        l1_out = self.drop1(l1_out)
-
-        l2_out = self.conv2(l1_out)
-        l2_out = F.relu(l2_out)
-        l2_out = self.bn2(l2_out)
-        l2_out = self.pool2(l2_out)
-        l2_out = self.drop2(l2_out)
-
-        l3_out = self.conv3(l2_out)
-        l3_out = F.relu(l3_out)
-        l3_out = self.bn3(l3_out)
-        l3_out = self.drop3(l3_out)
-        
-#         l4_out = self.conv4(l3_out)
-#         l4_out = self.bn4(l4_out)
-#         l4_out = F.relu(l4_out)
-#         l4_out = self.drop4(l4_out)
-#         #ipdb.set_trace()
-        
-        l4_out = torch.flatten(l3_out, 1)
-        
-        logits = self.fc1(l4_out)
+    def forward(self, out):
+        out = self.features(out)
+        logits = self.classifier(out)
         probs = F.softmax(logits, dim=1)
-        return logits, probs, l1_out, l2_out, l3_out
+        return logits, probs
+
+    
+class Logger:
+    def __init__(self):
+        self.outputs = []
+        self.n_layers = 0
+        
+    def __call__(self, module, module_in, module_out):
+        self.outputs.append(module_out)
+        
+    def clear(self):
+        del(self.outputs)
+        self.outputs = []
