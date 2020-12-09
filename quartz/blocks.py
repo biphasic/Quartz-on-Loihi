@@ -82,6 +82,8 @@ class Block:
         for neuron in self.neurons:
             for synapse in neuron.incoming_synapses():
                 connected_blocks.append(synapse.pre.parent_block)
+            for synapse in neuron.outgoing_synapses():
+                connected_blocks.append(synapse.pre.parent_block)
         unique_blocks = []
         for block in connected_blocks:
             if block not in unique_blocks:

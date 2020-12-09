@@ -28,7 +28,10 @@ class Layer:
 
     def output_blocks(self): return self._get_blocks_of_type(Block.output)
 
-    def trigger_blocks(self): return self._get_blocks_of_type(Block.trigger)
+    def trigger_blocks(self): 
+        trigger = self._get_blocks_of_type(Block.trigger)
+        assert len(trigger) == 1
+        return trigger
     
     def get_params_at_once(self):
         return self.weight_e, self.weight_acc, self.t_min, self.t_neu
@@ -68,21 +71,20 @@ class Layer:
     def __repr__(self):
         return self.name
 
-
+    
 class InputLayer(Layer):
     def __init__(self, dims, name="l0-input:", **kwargs):
         super(InputLayer, self).__init__(name=name, **kwargs)
         self.layer_n = 0
         self.output_dims = dims
-        trigger_block = quartz.blocks.Trigger(number=1, name=self.name+"trigger:", parent_layer=self)
+        trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
+        self.blocks += [trigger_block]
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    splitter = quartz.blocks.Splitter(name=name+"split-c{}w{}h{}:".format(channel,height,width), 
-                                                      type=Block.output, parent_layer=self)
-                    self.blocks += [splitter]
-        self.blocks += [trigger_block]
-
+                    pixel = quartz.blocks.Input(name=name+"input-c{}w{}h{}:".format(channel,height,width), parent_layer=self)
+                    self.blocks += [pixel]
+        
 
 class Dense(Layer):
     def __init__(self, weights, biases, rectifying=True, name="dense:", **kwargs):
@@ -91,9 +93,6 @@ class Dense(Layer):
         self.biases = biases
         self.rectifying = rectifying
         self.output_dims = weights.shape[0]
-#         self.weight_scaling = 2**math.floor(np.log2(1/abs(weights).max())) # can only scale by power of 2
-#         if self.weight_scaling > 2: self.weight_scaling = 2
-#         self.weights *= self.weight_scaling
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
@@ -108,7 +107,11 @@ class Dense(Layer):
             self.weight_e += 1
             n_inputs += 1
             assert weights.shape[0] == biases.shape[0]
-        if self.weight_e < 30: self.weight_e *= 8
+        while self.weight_e < 30: self.weight_e *= 8
+        prev_trigger = prev_layer.trigger_blocks()[0]
+        trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc)
+        self.blocks += [trigger_block]
         for i in range(self.output_dims):
             if self.rectifying:
                 relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
@@ -118,11 +121,18 @@ class Dense(Layer):
                                             monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
-                delay = 5 if weight > 0 else 0
-                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay + self.t_min)
-                block.second().connect_to(relco.input_neurons()[0], -weight*self.weight_acc, delay)
-                block.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs, delay)
+                #delay = 5 if weight > 0 else 0
+                delay = 0
+                block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay+self.t_min)
             self.blocks += [relco]
+            weight_sum = -sum(weights[i,:]) + 1
+            weight_sum_sign = np.sign(weight_sum)
+            for _ in range(int(abs(weight_sum))):
+                trigger_block.output_neurons()[0].connect_to(relco.neuron("calc"), weight_sum_sign*self.weight_acc, delay)
+            weight_rest = weight_sum - int(weight_sum)
+            #ipdb.set_trace()
+            trigger_block.output_neurons()[0].connect_to(relco.neuron("calc"), weight_sum_sign*weight_rest*self.weight_acc, delay)
+            trigger_block.output_neurons()[0].connect_to(relco.neuron("rect"), self.weight_acc, delay)
             if biases is not None:
                 bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{0:2.0f}:".format(i), 
                                                    type=Block.hidden, parent_layer=self)
@@ -157,8 +167,8 @@ class ConvPool2D(Layer):
         side_lengths = (int((prev_layer.output_dims[1] - conv_kernel_size[0]) / self.conv_stride + 1),\
                         int((prev_layer.output_dims[2] - conv_kernel_size[1]) / self.conv_stride + 1))
         prev_trigger = prev_layer.trigger_blocks()[0]
-        trigger_block = quartz.blocks.Trigger(number=output_channels, name=self.name+"trigger:", parent_layer=self)
-        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_e)
+        trigger_block = quartz.blocks.Trigger(n_channels=output_channels, name=self.name+"trigger:", parent_layer=self)
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc)
         self.blocks += [trigger_block]
         
         conv_neurons = []
@@ -341,6 +351,7 @@ class MonitorLayer(Layer):
         self.prev_layer = prev_layer
         self.name = "l{}-{}".format(self.layer_n, self.name)
         self.output_dims = prev_layer.output_dims
+        prev_trigger = prev_layer.trigger_blocks()[0]
         
         for i, block in enumerate(prev_layer.output_blocks()):
             monitor = quartz.blocks.Block(name=block.name+"monitor", type=Block.output, monitor=self.monitor, parent_layer=self)
@@ -349,4 +360,4 @@ class MonitorLayer(Layer):
             self.blocks += [monitor]
             extra_second_delay = 2 if isinstance(block, quartz.blocks.ConvMax) else 0
             block.first().connect_to(output_neuron, self.weight_e)
-            block.second().connect_to(output_neuron, self.weight_e, extra_second_delay)
+            prev_trigger.output_neurons()[0].connect_to(output_neuron, self.weight_e, extra_second_delay)
