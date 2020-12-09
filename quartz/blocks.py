@@ -26,9 +26,18 @@ class Block:
 
     def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
 
+    def neuron(self, name):
+        res = tuple(neuron for neuron in self.neurons if name in neuron.name)
+        if len(res) > 1:
+            [print(neuron.name) for neuron in res]
+            raise Exception("Provided name was ambiguous, results returned: ")
+        elif len(res) == 0:
+            raise Exception("No neuron with name {} found. Available names are: {}".format(name, self.neurons))
+        return res[0]
+    
     def first(self): 
         neuron = self.output_neurons()[0]
-        assert "1st" in neuron.name
+        assert "1st" in neuron.name or isinstance(self, quartz.blocks.Input)
         return neuron
 
     def second(self):
@@ -102,6 +111,13 @@ class Block:
         return weights, delays, mask
 
 
+class Input(Block):
+    def __init__(self, name="input:", type=Block.output, **kwargs):
+        super(Input, self).__init__(name=name, type=type, **kwargs)
+        output = Neuron(type=Neuron.output, name=self.name+"neuron", parent=self)
+        self.neurons = [output]
+    
+    
 class ConstantDelay(Block):
     def __init__(self, value, name="bias:", type=Block.hidden, **kwargs):
         self.value = abs(value)
@@ -157,20 +173,15 @@ class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
         calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
-        ref = Neuron(name=name + "ref", loihi_type=Neuron.acc, parent=self)
-        sync = Neuron(name=name + "sync", type=Neuron.input, parent=self)
+        rect = Neuron(name=name + "rect", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
         first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
-        second = Neuron(name=name + "2nd", type=Neuron.output, parent=self)
-        self.neurons = [calc, ref, sync, first, second]
+        self.neurons = [calc, rect, first]
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        sync.connect_to(calc, weight_acc)
-        sync.connect_to(ref, weight_acc)
-        calc.connect_to(first, weight_e)
         calc.connect_to(calc, -weight_acc)
-        ref.connect_to(first, weight_e)
-        ref.connect_to(second, weight_e, t_min)
-        ref.connect_to(ref, -weight_acc)
+        calc.connect_to(first, weight_e)
+        rect.connect_to(rect, -weight_acc)
+        rect.connect_to(first, weight_e)
         first.connect_to(first, -weight_e)
 
 
@@ -205,19 +216,13 @@ class ConvMax(Block):
 
 
 class Trigger(Block):
-    def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
+    def __init__(self, n_channels, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
-        guard = Neuron(name=self.name + "guard", parent=self)
-        start_neuron = Neuron(name=self.name + "acc1", loihi_type=Neuron.acc, parent=self)
-        self.neurons += [guard, start_neuron]
+        assert n_channels > 0
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        guard.connect_to(start_neuron, weight_acc, 5)
-        guard.connect_to(guard, -2*weight_e)
-        start_neuron.connect_to(start_neuron, -weight_acc)
-        
-        for t in range(number):
-            trigger_neuron = Neuron(name=self.name + "neuron", type=Neuron.output, parent=self)
-            start_neuron.connect_to(trigger_neuron, weight_e)
+        for t in range(n_channels):
+            trigger_neuron = Neuron(name=self.name + "trigger" + str(t), type=Neuron.output, loihi_type=Neuron.acc, parent=self)
+            trigger_neuron.connect_to(trigger_neuron, -weight_acc)
             self.neurons += [trigger_neuron]
 
 
