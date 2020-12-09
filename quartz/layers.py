@@ -125,7 +125,7 @@ class Dense(Layer):
                 delay = 0
                 block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay+self.t_min)
             self.blocks += [relco]
-            weight_sum = -sum(weights[i,:]) + 1
+            weight_sum = -sum((weights[i,:]*255).round()/255) + 1
             weight_sum_sign = np.sign(weight_sum)
             for _ in range(int(abs(weight_sum))):
                 trigger_block.output_neurons()[0].connect_to(relco.neuron("calc"), weight_sum_sign*self.weight_acc, delay)
@@ -352,6 +352,9 @@ class MonitorLayer(Layer):
         self.name = "l{}-{}".format(self.layer_n, self.name)
         self.output_dims = prev_layer.output_dims
         prev_trigger = prev_layer.trigger_blocks()[0]
+        trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc)
+        self.blocks += [trigger_block]
         
         for i, block in enumerate(prev_layer.output_blocks()):
             monitor = quartz.blocks.Block(name=block.name+"monitor", type=Block.output, monitor=self.monitor, parent_layer=self)
@@ -360,4 +363,4 @@ class MonitorLayer(Layer):
             self.blocks += [monitor]
             extra_second_delay = 2 if isinstance(block, quartz.blocks.ConvMax) else 0
             block.first().connect_to(output_neuron, self.weight_e)
-            prev_trigger.output_neurons()[0].connect_to(output_neuron, self.weight_e, extra_second_delay)
+            trigger_block.output_neurons()[0].connect_to(output_neuron, self.weight_e, extra_second_delay)
