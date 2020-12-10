@@ -100,15 +100,29 @@ class Block:
         return self.connections["post"] != []
 
     def get_connection_matrices_to(self, block):
-        weights = np.zeros((len(block.neurons), len(self.neurons)))
+        weights = np.zeros((1, len(block.neurons), len(self.neurons)))
         delays = np.zeros_like(weights)
-        mask = np.zeros_like(weights)
         for i, neuron in enumerate(self.neurons):
             for synapse in neuron.outgoing_synapses():
                 if synapse.post in block.neurons:
                     j = block.neurons.index(synapse.post)
-                    weights[j, i] = synapse.weight
-                    delays[j, i] = synapse.delay
+                    for m in range(weights.shape[0]): 
+                        # multiple weight matrices are possible for multiple connection from one to the same neuron
+                        if weights[m, j, i] != 0 and (m+1) == weights.shape[0]:
+                            weights = np.resize(weights, (weights.shape[0]+1, *weights.shape[1:]))
+                            weights[-1] = 0
+                            delays = np.resize(delays, (delays.shape[0]+1, *delays.shape[1:]))
+                            delays[-1] = 0
+                            weights[-1, j, i] = synapse.weight
+                            delays[-1, j, i] = synapse.delay
+                            break
+                        if weights[m, j, i] != 0:
+                            continue
+                        else:
+                            weights[m, j, i] = synapse.weight
+                            delays[m, j, i] = synapse.delay
+                            break
+        mask = np.zeros_like(weights)
         mask[weights!=0] = 1
         return weights, delays, mask
 

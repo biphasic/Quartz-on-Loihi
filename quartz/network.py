@@ -202,17 +202,18 @@ class Network:
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
                     source_block = source.loihi_group
-                    weights, delays, mask = source.get_connection_matrices_to(target)
-                    proto_map = np.zeros_like(weights).astype(int)
-                    proto_map[weights<0] = 1
-                    weights = weights.round()
-
-                    if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
-                        conn_prototypes[0] = conn_prototypes[1]
+                    weight_matrix, delay_matrix, mask_matrix = source.get_connection_matrices_to(target)
+                    for weights, delays, mask in zip(weight_matrix, delay_matrix, mask_matrix):
                         proto_map = np.zeros_like(weights).astype(int)
-                    if not (isinstance(target, quartz.blocks.Input) or (l == 0 and isinstance(target, quartz.blocks.Trigger))):
-                        connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
-                                                          weight=weights, delay=delays, connectionMask=mask)
+                        proto_map[weights<0] = 1
+                        weights = weights.round()
+
+                        if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
+                            conn_prototypes[0] = conn_prototypes[1]
+                            proto_map = np.zeros_like(weights).astype(int)
+                        if not (isinstance(target, quartz.blocks.Input) or (l == 0 and isinstance(target, quartz.blocks.Trigger))):
+                            connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                                              weight=weights, delay=delays, connectionMask=mask)
         return net
 
     def add_input_spikes(self, spike_list):
