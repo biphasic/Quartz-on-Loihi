@@ -101,13 +101,7 @@ class Dense(Layer):
         weights, biases = self.weights, self.biases
         input_blocks = prev_layer.output_blocks()
         assert weights.shape[1] == len(input_blocks)
-        n_inputs = len(input_blocks)
-        self.weight_e = len(input_blocks)
-        if biases is not None: 
-            self.weight_e += 1
-            n_inputs += 1
-            assert weights.shape[0] == biases.shape[0]
-        while self.weight_e < 10: self.weight_e *= 8
+        if biases is not None: assert weights.shape[0] == biases.shape[0]
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
         prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, 0)
@@ -121,8 +115,7 @@ class Dense(Layer):
                                             monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
-                #delay = 5 if weight > 0 else 0
-                delay = 0
+                delay = 0 #delay = 5 if weight > 0 else 0
                 block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay+self.t_min)
             self.blocks += [relco]
             # negative sum of quantized weights to balance first spikes and  +1 is for readout
