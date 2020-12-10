@@ -110,7 +110,7 @@ class Dense(Layer):
         while self.weight_e < 30: self.weight_e *= 8
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc)#, self.t_min)
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, 0)
         self.blocks += [trigger_block]
         for i in range(self.output_dims):
             if self.rectifying:
@@ -351,7 +351,7 @@ class MonitorLayer(Layer):
         self.output_dims = prev_layer.output_dims
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, self.t_min+1)
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, 0)
         self.blocks += [trigger_block]
         
         for i, block in enumerate(prev_layer.output_blocks()):

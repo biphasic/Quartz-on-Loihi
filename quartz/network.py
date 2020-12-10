@@ -26,10 +26,9 @@ class Network:
         
     def __call__(self, inputs, t_max, steps_per_image=None, profiling=False, logging=False, partition='loihi'):
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None: steps_per_image = int(len(self.layers)*2*t_max)
+        if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
-        print(input_spike_list)
         assert np.log2(t_max).is_integer()
         self.data = []
         self.t_max = t_max

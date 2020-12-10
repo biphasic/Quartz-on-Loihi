@@ -36,7 +36,7 @@ def decode_values_into_spike_input(samples, t_max, steps_per_sample, t_min=1, st
     inputs = [[] for i in range(int(np.product(samples.shape[1:])))]
     inputs.append([])
     for sample in samples:
-        inputs[0] += [int(start_time)]
+        inputs[0] += [int(start_time+t_min)]
         for c, channel in enumerate(sample):
             for i, value in enumerate(channel.flatten()):
                 inputs[c*len(channel.flatten())+i+1] += [int((t_max*(1-value)).round() + start_time - t_min)]
