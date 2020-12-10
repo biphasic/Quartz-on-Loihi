@@ -107,7 +107,7 @@ class Dense(Layer):
             self.weight_e += 1
             n_inputs += 1
             assert weights.shape[0] == biases.shape[0]
-        while self.weight_e < 30: self.weight_e *= 8
+        while self.weight_e < 10: self.weight_e *= 8
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
         prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, 0)
@@ -125,7 +125,8 @@ class Dense(Layer):
                 delay = 0
                 block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay+self.t_min)
             self.blocks += [relco]
-            weight_sum = -sum((weights[i,:]*255).round()/255) + 1 # negative sum of quantized weights to balance first spikes and  +1 is for readout
+            # negative sum of quantized weights to balance first spikes and  +1 is for readout
+            weight_sum = -sum((weights[i,:]*255).round()/255) + 1
             for _ in range(int(abs(weight_sum))):
                 trigger_block.output_neurons()[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
             weight_rest = weight_sum - int(weight_sum)
@@ -137,11 +138,10 @@ class Dense(Layer):
                 splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(i), 
                                                   type=Block.hidden, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-                input_blocks[0].output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
+                prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
                 bias_sign = np.sign(biases[i])
                 splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc, self.t_min)
                 splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
-                splitter.second().connect_to(relco.input_neurons()[1], self.weight_e/n_inputs)
                 self.blocks += [bias, splitter]
 
 
@@ -351,12 +351,12 @@ class MonitorLayer(Layer):
         self.output_dims = prev_layer.output_dims
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, 0)
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.neurons[0], self.weight_acc, 2)
         self.blocks += [trigger_block]
         
         for i, block in enumerate(prev_layer.output_blocks()):
             monitor = quartz.blocks.Block(name=block.name+"monitor", type=Block.output, monitor=self.monitor, parent_layer=self)
-            output_neuron = Neuron(name=block.name + "monitor-{0:3.0f}".format(i), type=Block.input, monitor=self.monitor, parent=monitor)
+            output_neuron = Neuron(name=block.name + "monitor-{0:3.0f}".format(i), type=Block.output, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
             extra_second_delay = 2 if isinstance(block, quartz.blocks.ConvMax) else 0
