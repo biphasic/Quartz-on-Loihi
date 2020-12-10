@@ -51,7 +51,7 @@ class Network:
         else:
             self.data = output_probe.output()
             # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
-            output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
+            output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items()) if len(value)>=batch_size]).flatten()
             last_layer = self.layers[-2]
             if isinstance(last_layer, quartz.layers.Dense):
                 if last_layer.rectifying: # False: # 
@@ -256,7 +256,7 @@ class Network:
         try:
             self.init_channel.write(1, [self.steps_per_image])
         except:
-            pass
+            pass # raise pasNotImplementedError()
         board.run(run_time, partition=partition)
         board.disconnect()
         if profiling:
