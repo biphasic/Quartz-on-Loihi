@@ -220,7 +220,7 @@ class ConvMax(Block):
         self.neurons += conv_neurons
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        first.connect_to(first, -3.1*weight_e) # TODO boost coefficient by lowering weight_e
+        first.connect_to(first, -8.1*weight_e)
         for neuron in conv_neurons:
             first.connect_to(neuron, -weight_acc) # as an alternative to negative loop from neuron to neuron, this saves some spikes
             neuron.connect_to(first, weight_e)
