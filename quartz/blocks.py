@@ -26,6 +26,8 @@ class Block:
 
     def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
 
+    def rectifier_neurons(self): return self._get_neurons_of_type(Neuron.rectifier)
+
     def neuron(self, name):
         res = tuple(neuron for neuron in self.neurons if name in neuron.name)
         if len(res) > 1:
@@ -189,15 +191,12 @@ class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
         calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
-        rect = Neuron(name=name + "rect", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
         first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
-        self.neurons = [calc, rect, first]
+        self.neurons = [calc, first]
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         calc.connect_to(calc, -weight_acc)
         calc.connect_to(first, weight_e)
-        rect.connect_to(rect, -weight_acc)
-        rect.connect_to(first, weight_e)
         first.connect_to(first, -weight_e)
 
 
@@ -234,12 +233,16 @@ class ConvMax(Block):
 class Trigger(Block):
     def __init__(self, n_channels, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
+        rect = Neuron(name=name + "rect", loihi_type=Neuron.acc, type=Neuron.rectifier, parent=self)
+        self.neurons = [rect]
         assert n_channels > 0
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        rect.connect_to(rect, -weight_acc)
         for t in range(n_channels):
             trigger_neuron = Neuron(name=self.name + "trigger" + str(t), type=Neuron.output, loihi_type=Neuron.acc, parent=self)
             trigger_neuron.connect_to(trigger_neuron, -weight_acc)
             self.neurons += [trigger_neuron]
+        self.neurons[-1].connect_to(rect, weight_acc)
 
 
 class Output(Block):

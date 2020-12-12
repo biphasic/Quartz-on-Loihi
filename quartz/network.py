@@ -50,7 +50,6 @@ class Network:
             return self.energy_probe
         else:
             self.data = output_probe.output()
-            # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
             output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items()) if len(value)>=batch_size]).flatten()
             last_layer = self.layers[-2]
             if isinstance(last_layer, quartz.layers.Dense):
@@ -158,8 +157,7 @@ class Network:
         layer_measurements = [nx.ProbeParameter.SPIKE]
         for i, layer in enumerate(self.layers):
             for block in layer.blocks:
-                if isinstance(block, quartz.blocks.Input) or (i == 0 and isinstance(block, quartz.blocks.Trigger)):
-                    #ipdb.set_trace()
+                if isinstance(block, quartz.blocks.Input): # instead of compartment group create spike generators
                     block_group = net.createSpikeGenProcess(numPorts=1)
                     block.loihi_group = block_group
                     self.spike_gen_processes.append(block_group)
@@ -206,11 +204,10 @@ class Network:
                         proto_map = np.zeros_like(weights).astype(int)
                         proto_map[weights<0] = 1
                         weights = weights.round()
-
                         if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
                             conn_prototypes[0] = conn_prototypes[1]
                             proto_map = np.zeros_like(weights).astype(int)
-                        if not (isinstance(target, quartz.blocks.Input) or (l == 0 and isinstance(target, quartz.blocks.Trigger))):
+                        if not isinstance(target, quartz.blocks.Input): # the source block would be a spike_generator, which cannot be connected to
                             connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                                               weight=weights, delay=delays, connectionMask=mask)
         return net

@@ -13,7 +13,7 @@ class Synapse:
 
 
 class Neuron:
-    input, hidden, output = range(3)
+    input, hidden, rectifier, output = range(4)
     pulse, acc = range(2)
 
     def __init__(self, type=hidden, loihi_type=pulse, name=None, monitor=False, parent=None):
