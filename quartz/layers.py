@@ -179,7 +179,7 @@ class Conv2D(Layer):
                     splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                                       type=Block.hidden, monitor=False, parent_layer=self)
                     bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-                    prev_trigger.output_neurons()[output_channel].connect_to(bias.input_neurons()[0], self.weight_e) 
+                    prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) 
                     self.blocks += [bias, splitter]
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
