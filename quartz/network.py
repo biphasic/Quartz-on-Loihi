@@ -86,6 +86,9 @@ class Network:
     def n_parameters(self):
         return sum([layer.n_parameters() for layer in self.layers])
     
+    def n_spikes(self):
+        return sum([layer.n_spikes() for layer in self.layers])
+    
     def n_outgoing_connections(self):
         return sum([layer.n_outgoing_connections() for layer in self.layers])
     
@@ -266,9 +269,9 @@ class Network:
         print(self.compartments_on_core)
 
     def __repr__(self):
-        print("name     \tn_comp \tn_param n_conn")
-        print("-------------------------------------")
-        print('\n'.join(["{:11s}\t{:5d}\t{:6d}\t{:6d}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
-                                                         layer.n_outgoing_connections()) for layer in self.layers]))
-        print("-------------------------------------")
-        return "total   \t{}  \t{}  \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections())
+        print("name     \tn_comp \tn_param n_conn n_spikes")
+        print("-----------------------------------------------")
+        print('\n'.join(["{:11s}\t{:5d}\t{:6d}\t{:6d}\t{:6d}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
+                                                         layer.n_outgoing_connections(), layer.n_spikes()) for layer in self.layers]))
+        print("-----------------------------------------------")
+        return "total   \t{}  \t{}  \t{} \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections(), self.n_spikes())

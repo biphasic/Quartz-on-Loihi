@@ -50,6 +50,13 @@ class Layer:
         if self.biases is not None: n_params += np.product(self.biases.shape)
         return n_params
     
+    def n_spikes(self):
+        saved_spikes = 0
+        for block in self.blocks:
+            if isinstance(block, quartz.blocks.ConvMax):
+                saved_spikes += len(block.neurons) - 2
+        return self.n_compartments() - saved_spikes
+
     def n_outgoing_connections(self):
         return sum([block.n_outgoing_connections() for block in self.blocks])
     
