@@ -215,18 +215,15 @@ class WTA(Block):
 class ConvMax(Block):
     def __init__(self, conv_neurons, name="convmax:", type=Block.output, **kwargs):
         super(ConvMax, self).__init__(name=name, type=type, **kwargs)
-        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
-        second = Neuron(type=Neuron.output, name=name + "2nd", loihi_type=Neuron.acc, parent=self)
-        self.neurons = [first, second]
+        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
+        self.neurons = [first]
         self.neurons += conv_neurons
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        first.connect_to(first, -3.1*weight_e)
-        second.connect_to(second, -weight_acc)
-        second.connect_to(first, weight_e)
+        first.connect_to(first, -3.1*weight_e) # TODO boost coefficient by lowering weight_e
         for neuron in conv_neurons:
+            first.connect_to(neuron, -weight_acc) # as an alternative to negative loop from neuron to neuron, this saves some spikes
             neuron.connect_to(first, weight_e)
-            first.connect_to(neuron, -weight_acc)
             neuron.parent_block = self
 
 
