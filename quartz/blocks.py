@@ -26,9 +26,20 @@ class Block:
 
     def output_neurons(self): return self._get_neurons_of_type(Neuron.output)
 
+    def rectifier_neurons(self): return self._get_neurons_of_type(Neuron.rectifier)
+
+    def neuron(self, name):
+        res = tuple(neuron for neuron in self.neurons if name in neuron.name)
+        if len(res) > 1:
+            [print(neuron.name) for neuron in res]
+            raise Exception("Provided name was ambiguous, results returned: ")
+        elif len(res) == 0:
+            raise Exception("No neuron with name {} found. Available names are: {}".format(name, self.neurons))
+        return res[0]
+    
     def first(self): 
         neuron = self.output_neurons()[0]
-        assert "1st" in neuron.name
+        assert "1st" in neuron.name or isinstance(self, quartz.blocks.Input)
         return neuron
 
     def second(self):
@@ -73,6 +84,8 @@ class Block:
         for neuron in self.neurons:
             for synapse in neuron.incoming_synapses():
                 connected_blocks.append(synapse.pre.parent_block)
+            for synapse in neuron.outgoing_synapses():
+                connected_blocks.append(synapse.pre.parent_block)
         unique_blocks = []
         for block in connected_blocks:
             if block not in unique_blocks:
@@ -89,19 +102,40 @@ class Block:
         return self.connections["post"] != []
 
     def get_connection_matrices_to(self, block):
-        weights = np.zeros((len(block.neurons), len(self.neurons)))
+        weights = np.zeros((1, len(block.neurons), len(self.neurons)))
         delays = np.zeros_like(weights)
-        mask = np.zeros_like(weights)
         for i, neuron in enumerate(self.neurons):
             for synapse in neuron.outgoing_synapses():
                 if synapse.post in block.neurons:
                     j = block.neurons.index(synapse.post)
-                    weights[j, i] = synapse.weight
-                    delays[j, i] = synapse.delay
+                    for m in range(weights.shape[0]): 
+                        # multiple weight matrices are possible for multiple connection from one to the same neuron
+                        if weights[m, j, i] != 0 and (m+1) == weights.shape[0]:
+                            weights = np.resize(weights, (weights.shape[0]+1, *weights.shape[1:]))
+                            weights[-1] = 0
+                            delays = np.resize(delays, (delays.shape[0]+1, *delays.shape[1:]))
+                            delays[-1] = 0
+                            weights[-1, j, i] = synapse.weight
+                            delays[-1, j, i] = synapse.delay
+                            break
+                        if weights[m, j, i] != 0:
+                            continue
+                        else:
+                            weights[m, j, i] = synapse.weight
+                            delays[m, j, i] = synapse.delay
+                            break
+        mask = np.zeros_like(weights)
         mask[weights!=0] = 1
         return weights, delays, mask
 
 
+class Input(Block):
+    def __init__(self, name="input:", type=Block.output, **kwargs):
+        super(Input, self).__init__(name=name, type=type, **kwargs)
+        output = Neuron(type=Neuron.output, name=self.name+"neuron", parent=self)
+        self.neurons = [output]
+    
+    
 class ConstantDelay(Block):
     def __init__(self, value, name="bias:", type=Block.hidden, **kwargs):
         self.value = abs(value)
@@ -157,20 +191,12 @@ class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
         calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
-        ref = Neuron(name=name + "ref", loihi_type=Neuron.acc, parent=self)
-        sync = Neuron(name=name + "sync", type=Neuron.input, parent=self)
         first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
-        second = Neuron(name=name + "2nd", type=Neuron.output, parent=self)
-        self.neurons = [calc, ref, sync, first, second]
+        self.neurons = [calc, first]
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        sync.connect_to(calc, weight_acc)
-        sync.connect_to(ref, weight_acc)
-        calc.connect_to(first, weight_e)
         calc.connect_to(calc, -weight_acc)
-        ref.connect_to(first, weight_e)
-        ref.connect_to(second, weight_e, t_min)
-        ref.connect_to(ref, -weight_acc)
+        calc.connect_to(first, weight_e)
         first.connect_to(first, -weight_e)
 
 
@@ -189,36 +215,31 @@ class WTA(Block):
 class ConvMax(Block):
     def __init__(self, conv_neurons, name="convmax:", type=Block.output, **kwargs):
         super(ConvMax, self).__init__(name=name, type=type, **kwargs)
-        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
-        second = Neuron(type=Neuron.output, name=name + "2nd", loihi_type=Neuron.acc, parent=self)
-        self.neurons = [first, second]
+        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
+        self.neurons = [first]
         self.neurons += conv_neurons
 
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        first.connect_to(first, -3.1*weight_e)
-        second.connect_to(second, -weight_acc)
-        second.connect_to(first, weight_e)
+        first.connect_to(first, -8.1*weight_e)
         for neuron in conv_neurons:
+            first.connect_to(neuron, -weight_acc) # as an alternative to negative loop from neuron to neuron, this saves some spikes
             neuron.connect_to(first, weight_e)
-            first.connect_to(neuron, -weight_acc)
             neuron.parent_block = self
 
 
 class Trigger(Block):
-    def __init__(self, number, name="pool:", type=Block.trigger, **kwargs):
+    def __init__(self, n_channels, name="pool:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
-        guard = Neuron(name=self.name + "guard", parent=self)
-        start_neuron = Neuron(name=self.name + "acc1", loihi_type=Neuron.acc, parent=self)
-        self.neurons += [guard, start_neuron]
+        rect = Neuron(name=name + "rect", loihi_type=Neuron.acc, type=Neuron.rectifier, parent=self)
+        self.neurons = [rect]
+        assert n_channels > 0
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        guard.connect_to(start_neuron, weight_acc, 5)
-        guard.connect_to(guard, -2*weight_e)
-        start_neuron.connect_to(start_neuron, -weight_acc)
-        
-        for t in range(number):
-            trigger_neuron = Neuron(name=self.name + "neuron", type=Neuron.output, parent=self)
-            start_neuron.connect_to(trigger_neuron, weight_e)
+        rect.connect_to(rect, -weight_acc)
+        for t in range(n_channels):
+            trigger_neuron = Neuron(name=self.name + "trigger" + str(t), type=Neuron.output, loihi_type=Neuron.acc, parent=self)
+            trigger_neuron.connect_to(trigger_neuron, -weight_acc)
             self.neurons += [trigger_neuron]
+        self.neurons[-1].connect_to(rect, weight_acc)
 
 
 class Output(Block):

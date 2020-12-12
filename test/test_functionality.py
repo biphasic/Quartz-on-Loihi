@@ -81,7 +81,7 @@ class TestFunctionality(unittest.TestCase):
             layers.Dense(weights=weights, biases=None, weight_acc=128),
             layers.MonitorLayer(),
         ])
-        relco_probe = quartz.probe(loihi_model.layers[1].blocks[0])
+        relco_probe = quartz.probe(loihi_model.layers[1].blocks[1])
         values = np.array(values)
         quantized_values = (values*t_max).round()/t_max
 
@@ -95,4 +95,4 @@ class TestFunctionality(unittest.TestCase):
         loihi_output = loihi_model(values, t_max)
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         self.assertEqual(loihi_output, np.maximum(model_output.flatten(), 0))
-        self.assertGreater(relco_probe.output()[1]['l1-dense:relco-n  0:2nd'], relco_probe.output()[1]['l1-dense:relco-n  0:1st'])
+        self.assertGreater(loihi_model.data[1]['l2-monitor:trigger:'], relco_probe.output()[1]['l1-dense:relco-n  0:1st'])

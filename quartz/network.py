@@ -21,12 +21,12 @@ class Network:
         self.layers = layers
         self.probes = []
         self.layout_complete = False
-        for i in range(1, len(layers)): # skip input layer
-            layers[i].connect_from(layers[i-1])
+        for i in range(1, len(self.layers)): # skip first layer
+            self.layers[i].connect_from(self.layers[i-1])
         
     def __call__(self, inputs, t_max, steps_per_image=None, profiling=False, logging=False, partition='loihi'):
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None: steps_per_image = int(len(self.layers)*2*t_max)
+        if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
         assert np.log2(t_max).is_integer()
@@ -50,8 +50,7 @@ class Network:
             return self.energy_probe
         else:
             self.data = output_probe.output()
-            # print("Last timestep is " + str(np.max([np.max(value) for (key, value) in sorted(output_probe.output()[1].items())])))
-            output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items())]).flatten()
+            output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items()) if len(value)>=batch_size]).flatten()
             last_layer = self.layers[-2]
             if isinstance(last_layer, quartz.layers.Dense):
                 if last_layer.rectifying: # False: # 
@@ -76,7 +75,7 @@ class Network:
         # connect loihi compartments
         net = self.connect_blocks(net)
         # add inputs
-        net = self.add_input_spikes(input_spike_list, net)
+        self.add_input_spikes(input_spike_list)
         # compile the whole thing
         board = self.compile_net(net)
         return board
@@ -86,6 +85,9 @@ class Network:
     
     def n_parameters(self):
         return sum([layer.n_parameters() for layer in self.layers])
+    
+    def n_spikes(self):
+        return sum([layer.n_spikes() for layer in self.layers])
     
     def n_outgoing_connections(self):
         return sum([layer.n_outgoing_connections() for layer in self.layers])
@@ -153,19 +155,21 @@ class Network:
         
     def create_compartments(self):
         net = nx.NxNet()
+        self.spike_gen_processes = []
         measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
         layer_measurements = [nx.ProbeParameter.SPIKE]
         for i, layer in enumerate(self.layers):
             for block in layer.blocks:
+                if isinstance(block, quartz.blocks.Input): # instead of compartment group create spike generators
+                    block_group = net.createSpikeGenProcess(numPorts=1)
+                    block.loihi_group = block_group
+                    self.spike_gen_processes.append(block_group)
+                    continue
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
-                acc_proto_scaled = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant * layer.weight_scaling,
-                                                           compartmentCurrentDecay=0) # for calc neurons
                 for neuron in block.neurons:
-                    if neuron.loihi_type == Neuron.acc and "calc" in neuron.name:
-                        loihi_neuron = net.createCompartment(acc_proto_scaled) # increase the dynamic range of input synapse weights
-                    elif neuron.loihi_type == Neuron.acc:
+                    if neuron.loihi_type == Neuron.acc:
                         loihi_neuron = net.createCompartment(acc_proto)
                     else:
                         pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
@@ -187,80 +191,30 @@ class Network:
 
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
-        normal_connections = 0
-        shared_connections = 0
         for l, layer in enumerate(self.layers):
-            connection_dict = {}
             for target in layer.blocks:
                 target_block = target.loihi_group
                 for source in target.get_connected_blocks():
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
-#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
-#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
                     source_block = source.loihi_group
-                    weights, delays, mask = source.get_connection_matrices_to(target)
-                    proto_map = np.zeros_like(weights).astype(int)
-                    proto_map[weights<0] = 1
-#                     if source == target and isinstance(target, quartz.blocks.ReLCo): 
-#                         proto_map[0,2] = 2
-#                         proto_map[0,0] = 3
-                    ok = source
-#                     if "split-bias" in source.name and isinstance(target, quartz.blocks.ReLCo):
-#                         conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=2),
-#                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent+np.log2(layer.weight_scaling), signMode=3),]
-#                         proto_map[0,1] = 1
-#                         proto_map[0,2] = 2
-                    weights = weights.round()
-                    #weights[weights>255] = 255
-                    #weights[weights<-255] = -255
-                    weight_hash = hash(tuple(weights.flatten()))
-                    hash_key = weight_hash
-                    if False and hash_key in connection_dict.keys() and source.name not in connection_dict[hash_key][::3]\
-                        and target.name not in connection_dict[hash_key][1::3]:
-                        print("creating shared connection between {} and {}".format(source.name, target.name))
-                        source_block.connect(target_block, sharedConnGrp=connection_dict[hash_key][2], synapseSharingOnly=False)
-                        shared_connections += 1
-                    else:
-                        connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
-                                                          weight=weights, delay=delays, connectionMask=mask)
-                        if source.parent_layer.layer_n < layer.layer_n and isinstance(target, quartz.blocks.ReLCo):
-                            if not hash_key in connection_dict.keys():
-                                #print("saving connection between {} and {}".format(source.name, target.name))
-                                connection_dict[hash_key] = [source.name, target.name, connection]
-                        normal_connections += 1
-                    if target == source and isinstance(target, quartz.blocks.ConstantDelay) and len(target.neurons) == 2:
-                        key_delay = target.neurons[0].synapses["pre"][0].delay # connect a second time because edge case
-                        delays = np.array([[0, 0],[key_delay, 0]]) # of two synapses to the same neuron with diff. delays
-                        source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
-                                         weight=weights, delay=delays, connectionMask=mask)
-#         print("normal connections: " + str(normal_connections))
-#         print("shared connections: " + str(shared_connections))
+                    weight_matrix, delay_matrix, mask_matrix = source.get_connection_matrices_to(target)
+                    for weights, delays, mask in zip(weight_matrix, delay_matrix, mask_matrix):
+                        proto_map = np.zeros_like(weights).astype(int)
+                        proto_map[weights<0] = 1
+                        weights = weights.round()
+                        if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
+                            conn_prototypes[0] = conn_prototypes[1]
+                            proto_map = np.zeros_like(weights).astype(int)
+                        if not isinstance(target, quartz.blocks.Input): # the source block would be a spike_generator, which cannot be connected to
+                            connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                                              weight=weights, delay=delays, connectionMask=mask)
         return net
 
-    def add_input_spikes(self, spike_list, net):
+    def add_input_spikes(self, spike_list):
         input_layer = self.layers[0]
-        weight_e = input_layer.weight_e
-        connection_prototype=nx.ConnectionPrototype(weightExponent=input_layer.weight_exponent)
-        n_inputs = 0
-        for i, input_spikes in enumerate(spike_list):
-            input_spike_generator = net.createSpikeGenProcess(numPorts=1)
-            target_block = input_layer.blocks[i].loihi_group # later change this to index the right target block
-            input_spike_generator.connect(target_block, prototype=connection_prototype, # change this too
-                                          weight=np.array([[weight_e],[0],[0]]),
-                                          connectionMask=np.array([[1],[0],[0]]))
-            input_spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=input_spikes)
-            n_inputs += 1
-        first_layer = self.layers[1]
-        if isinstance(first_layer, quartz.layers.ConvPool2D):
-            n_neurons = len(first_layer.blocks[0].neurons)
-            weights = np.array([[first_layer.weight_e]]*n_neurons)
-            connectionMask = np.zeros_like(weights)
-            connectionMask[0] = 1
-            input_spike_generator.connect(first_layer.blocks[0].loihi_group, prototype=connection_prototype, 
-                                          weight=weights, connectionMask=connectionMask)
-        return net
+        for spike_generator, spikes in zip(self.spike_gen_processes, spike_list):
+            spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=spikes)
 
     def compile_net(self, net):
         print("{} Compiling now...".format(datetime.datetime.now()))
@@ -298,7 +252,7 @@ class Network:
         try:
             self.init_channel.write(1, [self.steps_per_image])
         except:
-            pass
+            pass # raise pasNotImplementedError()
         board.run(run_time, partition=partition)
         board.disconnect()
         if profiling:
@@ -311,9 +265,9 @@ class Network:
         print(self.compartments_on_core)
 
     def __repr__(self):
-        print("name     \tn_comp \tn_param n_conn")
-        print("-------------------------------------")
-        print('\n'.join(["{:11s}\t{:5d}\t{:6d}\t{:6d}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
-                                                         layer.n_outgoing_connections()) for layer in self.layers]))
-        print("-------------------------------------")
-        return "total   \t{}  \t{}  \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections())
+        print("name     \tn_comp \tn_param n_conn n_spikes")
+        print("-----------------------------------------------")
+        print('\n'.join(["{:11s}\t{:5d}\t{:6d}\t{:6d}\t{:6d}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
+                                                         layer.n_outgoing_connections(), layer.n_spikes()) for layer in self.layers]))
+        print("-----------------------------------------------")
+        return "total   \t{}  \t{}  \t{} \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections(), self.n_spikes())

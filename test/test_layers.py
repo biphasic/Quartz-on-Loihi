@@ -9,23 +9,6 @@ import torch.nn as nn
 
 
 class TestLayers(unittest.TestCase):
-    def test_model_fc(self):
-        dim_input = 100
-        dim_output = 100
-        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
-        biases = (np.random.rand(dim_output) - 0.5) / 2
-
-        loihi_model = quartz.Network([
-            layers.InputLayer(dims=(1,10,10,2)),
-            layers.Dense(weights=weights, biases=biases),
-            layers.MonitorLayer(),
-        ])
-        self.assertEqual(loihi_model.n_compartments(), 1403)
-        self.assertEqual(loihi_model.n_recurrent_connections(), 1404)
-        self.assertEqual(loihi_model.n_outgoing_connections(), 30700)
-        self.assertEqual(loihi_model.n_parameters(), 10100)
-
-
     @parameterized.expand([
         ((1,1,10,10,), 10),
         ((50,1,120,1,), 84),
@@ -103,35 +86,6 @@ class TestLayers(unittest.TestCase):
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
-
-    @parameterized.expand([
-        ((1,1,10,10,),),
-        ((50,6,24,24,),),
-        ((200,12,8,8,),),
-    ])
-    def test_maxpool2d(self, input_dims):
-        t_max = 2**8
-        kernel_size = [2,2]
-
-        loihi_model = quartz.Network([
-            layers.InputLayer(dims=input_dims[1:]),
-            layers.MaxPool2D(kernel_size=kernel_size),
-            layers.MonitorLayer(),
-        ])
-
-        np.random.seed(seed=45)
-        values = np.random.rand(*input_dims)
-        quantized_values = (values*t_max).round()/t_max
-
-        model = nn.Sequential(nn.MaxPool2d(kernel_size=kernel_size, stride=kernel_size[0]), nn.ReLU())
-        model_output = model(torch.tensor(quantized_values)).detach().numpy()
-        loihi_output = loihi_model(values, t_max)
-
-        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
-        output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
-        for (out, ideal) in output_combinations:
-            self.assertEqual(out, ideal)
-
             
     @parameterized.expand([
         ((1,1,8,8), (3,1,3,3)),
@@ -139,7 +93,7 @@ class TestLayers(unittest.TestCase):
         ((500,2,4,4), (4,2,3,3)),
     ])
     def test_convpool2d(self, input_dims, weight_dims):
-        t_max = 2**9
+        t_max = 2**8
         conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
@@ -152,12 +106,6 @@ class TestLayers(unittest.TestCase):
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims[1:]),
             layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
-            layers.MonitorLayer(),
-        ])
-        loihi_model1 = quartz.Network([
-            layers.InputLayer(dims=input_dims[1:]),
-            layers.Conv2D(weights=weights, biases=biases),
-            layers.MaxPool2D(kernel_size=pooling_kernel_size, stride=pooling_stride),
             layers.MonitorLayer(),
         ])
 
@@ -176,15 +124,9 @@ class TestLayers(unittest.TestCase):
         model_output = model(torch.tensor(quantized_values)).detach().numpy()
         
         loihi_output = loihi_model(values, t_max)
-        loihi_output1 = loihi_model1(values, t_max)
         
-        self.assertTrue(all(loihi_output.flatten() == loihi_output1.flatten()))
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
-
-        output_combinations = list(zip(loihi_output.flatten(), loihi_output1.flatten()))
-        for (out, ideal) in output_combinations:
-            self.assertEqual(out, ideal)
