@@ -18,7 +18,6 @@ class Layer:
         self.output_dims = []
         self.layer_n = None
         self.prev_layer = None
-        self.weight_scaling = 1
         self.blocks = []
 
     def _get_blocks_of_type(self, block_type):
@@ -28,10 +27,7 @@ class Layer:
 
     def output_blocks(self): return self._get_blocks_of_type(Block.output)
 
-    def trigger_blocks(self): 
-        trigger = self._get_blocks_of_type(Block.trigger)
-        assert len(trigger) == 1
-        return trigger
+    def trigger_blocks(self): return self._get_blocks_of_type(Block.trigger)
     
     def get_params_at_once(self):
         return self.weight_e, self.weight_acc, self.t_min, self.t_neu
@@ -112,7 +108,8 @@ class Dense(Layer):
         if biases is not None: assert weights.shape[0] == biases.shape[0]
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[0], self.weight_acc, 0)
+        trigger_delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 2
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[0], self.weight_acc, trigger_delay)
         self.blocks += [trigger_block]
         for i in range(self.output_dims):
             if self.rectifying:
@@ -139,7 +136,7 @@ class Dense(Layer):
                 splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(i), 
                                                   type=Block.hidden, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-                prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # possibly be smarter about this one
+                prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e, trigger_delay) # possibly be smarter about this one
                 bias_sign = np.sign(biases[i])
                 splitter.first().connect_to(relco.input_neurons()[0], bias_sign*self.weight_acc, self.t_min)
                 splitter.second().connect_to(relco.input_neurons()[0], -bias_sign*self.weight_acc)
@@ -172,9 +169,10 @@ class Conv2D(Layer):
         n_groups_out = output_channels//self.groups
         n_groups_in = input_channels//self.groups
         prev_trigger = prev_layer.trigger_blocks()[0]
+        trigger_delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 2
         trigger_block = quartz.blocks.Trigger(n_channels=output_channels, name=self.name+"trigger:", parent_layer=self)
         for i in range(output_channels):
-            prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[i], self.weight_acc, 0)
+            prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[i], self.weight_acc, trigger_delay)
         self.blocks += [trigger_block]
         for g in range(self.groups): # split feature maps into groups
             for output_channel in range(g*n_groups_out,(g+1)*n_groups_out): # loop over output channels in one group
@@ -187,7 +185,7 @@ class Conv2D(Layer):
                     splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                                       type=Block.hidden, monitor=False, parent_layer=self)
                     bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-                    prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) 
+                    prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e, trigger_delay) 
                     self.blocks += [bias, splitter]
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
@@ -233,9 +231,10 @@ class ConvPool2D(Layer):
         side_lengths = (int((prev_layer.output_dims[1] - conv_kernel_size[0]) / self.conv_stride + 1),\
                         int((prev_layer.output_dims[2] - conv_kernel_size[1]) / self.conv_stride + 1))
         prev_trigger = prev_layer.trigger_blocks()[0]
+        trigger_delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 2
         trigger_block = quartz.blocks.Trigger(n_channels=output_channels, name=self.name+"trigger:", parent_layer=self)
         for i in range(output_channels):
-            prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[i], self.weight_acc, 0)
+            prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[i], self.weight_acc, trigger_delay)
         self.blocks += [trigger_block]
         
         conv_neurons = []
@@ -251,7 +250,7 @@ class ConvPool2D(Layer):
                 splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                                   type=Block.hidden, parent_layer=self)
                 bias.output_neurons()[0].connect_to(splitter.input_neurons()[0], self.weight_e)
-                prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e) # trigger biases not just from one block
+                prev_trigger.output_neurons()[0].connect_to(bias.input_neurons()[0], self.weight_e, trigger_delay) # trigger biases not just from one block
                 self.blocks += [bias, splitter]
             for i in range(np.product(side_lengths)): # loop through all units in the output channel
                 calc_neuron = Neuron(name=self.name + "calc-n{0:3.0f}".format(i), loihi_type=Neuron.acc)
@@ -305,7 +304,8 @@ class MonitorLayer(Layer):
         self.output_dims = prev_layer.output_dims
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[0], self.weight_acc, 2)
+        trigger_delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 2
+        prev_trigger.output_neurons()[0].connect_to(trigger_block.output_neurons()[0], self.weight_acc, trigger_delay)
         self.blocks += [trigger_block]
 
         for i, block in enumerate(prev_layer.output_blocks()):

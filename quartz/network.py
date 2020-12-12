@@ -168,12 +168,8 @@ class Network:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
-                acc_proto_scaled = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant * layer.weight_scaling,
-                                                           compartmentCurrentDecay=0) # for calc neurons
                 for neuron in block.neurons:
-                    if neuron.loihi_type == Neuron.acc and "calc" in neuron.name:
-                        loihi_neuron = net.createCompartment(acc_proto_scaled) # increase the dynamic range of input synapse weights
-                    elif neuron.loihi_type == Neuron.acc:
+                    if neuron.loihi_type == Neuron.acc:
                         loihi_neuron = net.createCompartment(acc_proto)
                     else:
                         pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
