@@ -9,23 +9,6 @@ import torch.nn as nn
 
 
 class TestLayers(unittest.TestCase):
-    def test_model_fc(self):
-        dim_input = 100
-        dim_output = 100
-        weights = (np.random.rand(dim_output,np.product(dim_input)) - 0.5) / 5
-        biases = (np.random.rand(dim_output) - 0.5) / 2
-
-        loihi_model = quartz.Network([
-            layers.InputLayer(dims=(1,10,10,2)),
-            layers.Dense(weights=weights, biases=biases),
-            layers.MonitorLayer(),
-        ])
-        self.assertEqual(loihi_model.n_compartments(), 1403)
-        self.assertEqual(loihi_model.n_recurrent_connections(), 1404)
-        self.assertEqual(loihi_model.n_outgoing_connections(), 30700)
-        self.assertEqual(loihi_model.n_parameters(), 10100)
-
-
     @parameterized.expand([
         ((1,1,10,10,), 10),
         ((50,1,120,1,), 84),
