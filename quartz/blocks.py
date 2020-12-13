@@ -199,18 +199,6 @@ class ReLCo(Block):
         calc.connect_to(first, weight_e)
         first.connect_to(first, -weight_e)
 
-
-class WTA(Block):
-    def __init__(self, name="pool:", type=Block.output, **kwargs):
-        super(WTA, self).__init__(name=name, type=type, **kwargs)
-        sync = Neuron(name=name + "sync", parent=self)
-        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
-        output = Neuron(type=Neuron.output, name=name + "2nd", parent=self)
-        self.neurons = [sync, first, output]
-        
-        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        sync.connect_to(first, weight_e)
-
         
 class ConvMax(Block):
     def __init__(self, conv_neurons, name="convmax:", type=Block.output, **kwargs):

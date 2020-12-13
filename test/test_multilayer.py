@@ -109,7 +109,6 @@ class TestMultiLayer(unittest.TestCase):
     ])
     def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
         t_max = 2**9
-        conv_kernel_size = conv_weight_dims[2:]
         conv_out_dim = conv_weight_dims[0]
         
         weights1 = (np.random.rand(*conv_weight_dims)-0.5) / 4
@@ -133,7 +132,7 @@ class TestMultiLayer(unittest.TestCase):
         quantized_biases2 = (biases2*t_max).round()/t_max
 
         model = nn.Sequential(
-            nn.Conv2d(in_channels=conv_weight_dims[1], out_channels=conv_weight_dims[0], kernel_size=conv_kernel_size), nn.ReLU(),
+            nn.Conv2d(in_channels=conv_weight_dims[1], out_channels=conv_weight_dims[0], kernel_size=conv_weight_dims[2:]), nn.ReLU(),
             nn.Flatten(), nn.Linear(in_features=np.product(conv_weight_dims[:2]), out_features=fc_out_dim), nn.ReLU(),
         )
         model[0].weight = nn.Parameter(torch.tensor(quantized_weights1))
@@ -155,7 +154,6 @@ class TestMultiLayer(unittest.TestCase):
     ])
     def test_2convpool(self, input_dims, weight_dims, weight_dims2):
         t_max = 2**8
-        conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
         np.random.seed(seed=44)
@@ -180,9 +178,9 @@ class TestMultiLayer(unittest.TestCase):
         quantized_biases2 = (biases2*t_max).round()/t_max
         
         model = nn.Sequential(
-            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=conv_kernel_size), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2:]), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
-            nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=conv_kernel_size), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=weight_dims2[2:]), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
         )
         model[0].weight = nn.Parameter(torch.tensor(quantized_weights1))
@@ -205,7 +203,6 @@ class TestMultiLayer(unittest.TestCase):
     ])
     def test_convpool_conv(self, input_dims, weight_dims, weight_dims2):
         t_max = 2**8
-        conv_kernel_size = weight_dims[2:]
         pooling_kernel_size = [2,2]
         pooling_stride = 2
 
@@ -224,12 +221,11 @@ class TestMultiLayer(unittest.TestCase):
         ])
 
         values = np.random.rand(*input_dims) / 2
-        #weight_acc = loihi_model.layers[1].weight_acc
 
         model = nn.Sequential(
-            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=conv_kernel_size), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2:]), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
-            nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=conv_kernel_size), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=weight_dims2[2:]), nn.ReLU(),
         )
         model[0].weight = nn.Parameter(torch.tensor(weights))
         model[0].bias = nn.Parameter(torch.tensor(biases))
@@ -244,3 +240,50 @@ class TestMultiLayer(unittest.TestCase):
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
 
+
+    @parameterized.expand([
+        ((10,1,14,14), (3,1,3,3), (5,3,3,3), (7,5,2,2)),
+    ])
+    def test_3convpool_conv(self, input_dims, weight_dims, weight_dims2, weight_dims3):
+        t_max = 2**8
+        pooling_kernel_size = [2,2]
+        np.random.seed(seed=44)
+        np.set_printoptions(suppress=True)
+        weights1 = (np.random.rand(*weight_dims)-0.5) # np.zeros(weight_dims) #
+        weights2 = (np.random.rand(*weight_dims2)-0.5) # np.zeros(weight_dims) #
+        weights3 = (np.random.rand(*weight_dims3)-0.5) # np.zeros(weight_dims) #
+        biases1 = (np.random.rand(weight_dims[0])-0.5) / 3
+        biases2 = (np.random.rand(weight_dims2[0])-0.5) / 3 
+        biases3 = (np.random.rand(weight_dims3[0])-0.5) / 3
+
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=input_dims[1:]),
+            layers.ConvPool2D(weights=weights1, biases=biases1, pool_kernel_size=pooling_kernel_size),
+            layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
+            layers.Conv2D(weights=weights3, biases=biases3),
+            layers.MonitorLayer(),
+        ])
+        values = np.random.rand(*input_dims) / 3
+        quantized_values = (values*t_max).round()/t_max
+        
+        model = nn.Sequential(
+            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2:]), nn.ReLU(),
+            nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_kernel_size[0]), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=weight_dims2[2:]), nn.ReLU(),
+            nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_kernel_size[0]), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims3[1], out_channels=weight_dims3[0], kernel_size=weight_dims3[2:]), nn.ReLU(),
+        )
+        model[0].weight = nn.Parameter(torch.tensor(weights1))
+        model[0].bias = nn.Parameter(torch.tensor(biases1))
+        model[4].weight = nn.Parameter(torch.tensor(weights2))
+        model[4].bias = nn.Parameter(torch.tensor(biases2))
+        model[8].weight = nn.Parameter(torch.tensor(weights3))
+        model[8].bias = nn.Parameter(torch.tensor(biases3))
+        model_output = model(torch.tensor(quantized_values)).detach().numpy()
+        loihi_output = loihi_model(values, t_max)
+        
+        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
+        print(output_combinations)
+        for (out, ideal) in output_combinations:
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
