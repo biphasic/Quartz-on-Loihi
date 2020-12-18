@@ -144,11 +144,12 @@ class Dense(Layer):
 
 
 class Conv2D(Layer):
-    def __init__(self, weights, biases, stride=1, groups=1, name="conv2D:", monitor=False, **kwargs):
+    def __init__(self, weights, biases, stride=1, padding=0, groups=1, name="conv2D:", monitor=False, **kwargs):
         super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights.copy()
         self.biases = biases
         self.stride = stride
+        self.padding = padding
         self.groups = groups
 
     def connect_from(self, prev_layer):
@@ -161,11 +162,13 @@ class Conv2D(Layer):
         input_blocks = prev_layer.output_blocks()
         output_channels, input_channels, *kernel_size = self.weights.shape
         input_channels *= self.groups
-        side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0]) / self.stride + 1), 
-                        int((prev_layer.output_dims[2] - kernel_size[1]) / self.stride + 1))
+        side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0] + 2*self.padding) / self.stride + 1), 
+                        int((prev_layer.output_dims[2] - kernel_size[1] + 2*self.padding) / self.stride + 1))
         self.output_dims = (output_channels, *side_lengths)
 
-        indices = np.arange(len(input_blocks)).reshape(*prev_layer.output_dims)
+        input_blocks = np.pad(np.array(input_blocks).reshape(*prev_layer.output_dims), 
+                              ((0,0), (self.padding,self.padding), (self.padding,self.padding)), 'constant', constant_values=(0))
+        indices = np.arange(len(input_blocks.flatten())).reshape(input_blocks.shape)
         n_groups_out = output_channels//self.groups
         n_groups_in = input_channels//self.groups
         prev_trigger = prev_layer.trigger_blocks()[0]
@@ -190,15 +193,18 @@ class Conv2D(Layer):
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                     self.blocks += [relco]
+                    weight_sum = 0
+                    delay = 0 # 4 if weight > 0 else 0
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
-                        block_patch = np.array(input_blocks)[patches[input_channel,i,:,:].flatten()]
+                        block_patch = input_blocks.flatten()[patches[input_channel,i,:,:].flatten()]
                         patch_weights = weights[output_channel,group_weight_index,:,:].flatten()
                         assert len(block_patch) == len(patch_weights)
                         for j, block in enumerate(block_patch):
-                            weight = patch_weights[j]
-                            delay = 0 # 4 if weight > 0 else 0
-                            block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay+self.t_min)
-                    weight_sum = -np.sum((weights[output_channel,:,:,:]*255).round()/255) + 1
+                            if block != 0: # no connection when trying to connect to padding block
+                                weight = patch_weights[j]
+                                weight_sum += (weight * 255).round() / 255
+                                block.first().connect_to(relco.input_neurons()[0], weight*self.weight_acc, delay+self.t_min)
+                    weight_sum = -weight_sum + 1
                     for _ in range(int(abs(weight_sum))):
                         trigger_block.output_neurons()[output_channel].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
                     weight_rest = weight_sum - int(weight_sum)
