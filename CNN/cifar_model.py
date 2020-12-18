@@ -10,6 +10,7 @@ class ConvNet(nn.Module):
         self.features = nn.Sequential(
             ConvBNReLU(in_channels=3, out_channels=32, kernel_size=3, stride=2),
             Bottleneck(in_channels=32, out_channels=64, expansion_factor=4, stride=2),
+            Bottleneck(in_channels=64, out_channels=64, expansion_factor=4, stride=1),
             Bottleneck(in_channels=64, out_channels=128, expansion_factor=4, stride=2),
         )
         self.classifier = nn.Sequential(
@@ -30,7 +31,7 @@ class ConvBNReLU(nn.Sequential):
         padding = (kernel_size - 1) // 2
         super(ConvBNReLU, self).__init__(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.BatchNorm2d(out_channels, momentum=0.4),
             nn.ReLU6(inplace=True)
         )
 
@@ -63,10 +64,10 @@ class ConvPool(nn.Sequential):
         super(ConvPool, self).__init__(
             nn.Conv2d(in_channels=in_channels, out_channels=out_channels, 
                       kernel_size=conv_kernel_size, stride=stride, bias=self.conv_bias),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=pool_kernel_size),
             nn.Dropout2d(self.drop_conv),
-            nn.BatchNorm2d(out_channels),
         )
 
 
