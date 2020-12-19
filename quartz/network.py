@@ -25,13 +25,13 @@ class Network:
             self.layers[i].connect_from(self.layers[i-1])
         
     def __call__(self, inputs, t_max, steps_per_image=None, profiling=False, logging=False, partition='loihi'):
-        batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*t_max)
-        run_time = steps_per_image*batch_size
-        input_spike_list = quartz.decode_values_into_spike_input(inputs, t_max, steps_per_image)
         assert np.log2(t_max).is_integer()
-        self.data = []
         self.t_max = t_max
+        batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
+        if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*self.t_max)
+        run_time = steps_per_image*batch_size
+        input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
+        self.data = []
         self.steps_per_image = steps_per_image
         if not logging:
             set_verbosity(LoggingLevel.ERROR)
@@ -133,13 +133,13 @@ class Network:
 #             n_cores = max(comp_limit, conn_in_limit, conn_out_limit)
 #             max_comps_per_core = comps / n_cores
             if i == 0:
-                max_comps_per_core = 350
+                max_comps_per_core = 400
             elif i == 1:
-                max_comps_per_core = 150
+                max_comps_per_core = 256
             elif i == 2:
-                max_comps_per_core = 150
+                max_comps_per_core = 256
             else:
-                max_comps_per_core = 220
+                max_comps_per_core = 256
             for block in layer.blocks:
                 if core_id >= 127: 
                     print(self.core_ids)
@@ -203,6 +203,8 @@ class Network:
                         proto_map = np.zeros_like(weights).astype(int)
                         proto_map[weights<0] = 1
                         weights = weights.round()
+                        weights[weights>255] = 255
+                        weights[weights<-255] = -255
                         if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
                             conn_prototypes[0] = conn_prototypes[1]
                             proto_map = np.zeros_like(weights).astype(int)
@@ -248,12 +250,12 @@ class Network:
             pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=2048, binSize=self.steps_per_image)
             eProbe = board.probe(ProbeParameter.ENERGY, pc)
             self.energy_probe = eProbe
-        board.start()
+        board.start(partition=partition)
         try:
             self.init_channel.write(1, [self.steps_per_image])
         except:
             pass # raise pasNotImplementedError()
-        board.run(run_time, partition=partition)
+        board.run(run_time)
         board.disconnect()
         if profiling:
             self.power_stats = board.energyTimeMonitor.powerProfileStats

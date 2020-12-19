@@ -29,15 +29,15 @@ void reset(runState *RunState) {
 
 //     LOG("Resetting cores at runState->time_step=%d...\n", RunState->time_step);
 
-    CxState cxs = (CxState) {.U=0, .V=0};
+//     CxState cxs = (CxState) {.U=0, .V=0};
     for(int i=0; i<numCores; i++) {
         logicalToPhysicalCoreId(i, &coreId);
         nc = NEURON_PTR(coreId);
 //        LOG("numCores=%d, core=%d, coreID=%d\n", numCores, i, coreId);
-        nx_fast_init64(nc->cx_state, numNeuronsPerCore, *(uint64_t*)&cxs);
+        nx_fast_init64(nc->cx_state, numNeuronsPerCore, 0);//*(uint64_t*)&cxs);
     }
         
-   // LOG("Done resetting cx_state. %d\n", RunState->time_step);
+//     LOG("Done resetting cx_state. %d\n", RunState->time_step);
     
     for(int i=0; i<numCores; i++) {
         logicalToPhysicalCoreId(i, &coreId);

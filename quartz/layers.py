@@ -144,11 +144,13 @@ class Dense(Layer):
 
 
 class Conv2D(Layer):
-    def __init__(self, weights, biases, stride=1, padding=0, groups=1, name="conv2D:", monitor=False, **kwargs):
+    def __init__(self, weights, biases, stride=(1,1), padding=(0,0), groups=1, name="conv2D:", monitor=False, **kwargs):
         super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights.copy()
         self.biases = biases
+        if isinstance(stride, int): stride = (stride, stride)
         self.stride = stride
+        if isinstance(padding, int): padding = (padding, padding)
         self.padding = padding
         self.groups = groups
 
@@ -162,12 +164,12 @@ class Conv2D(Layer):
         input_blocks = prev_layer.output_blocks()
         output_channels, input_channels, *kernel_size = self.weights.shape
         input_channels *= self.groups
-        side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0] + 2*self.padding) / self.stride + 1), 
-                        int((prev_layer.output_dims[2] - kernel_size[1] + 2*self.padding) / self.stride + 1))
+        side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0] + 2*self.padding[0]) / self.stride[0] + 1), 
+                        int((prev_layer.output_dims[2] - kernel_size[1] + 2*self.padding[1]) / self.stride[1] + 1))
         self.output_dims = (output_channels, *side_lengths)
 
         input_blocks = np.pad(np.array(input_blocks).reshape(*prev_layer.output_dims), 
-                              ((0,0), (self.padding,self.padding), (self.padding,self.padding)), 'constant', constant_values=(0))
+                              ((0,0), self.padding, self.padding), 'constant', constant_values=(0))
         indices = np.arange(len(input_blocks.flatten())).reshape(input_blocks.shape)
         n_groups_out = output_channels//self.groups
         n_groups_in = input_channels//self.groups
