@@ -1,5 +1,5 @@
 from quartz.components import Neuron, Synapse
-from quartz.utils import decode_spike_timings
+from quartz.utils import decode_spike_timings, profile
 import quartz
 import numpy as np
 import math
@@ -13,31 +13,17 @@ from nxsdk.graph.monitor.probes import PerformanceProbeCondition
 import datetime
 import ipdb
 import os
-import cProfile, pstats, io
+from tqdm.auto import tqdm
 
-def profile(fnc):
-    """A decorator that uses cProfile to profile a function"""
-    def inner(*args, **kwargs):
-        pr = cProfile.Profile()
-        pr.enable()
-        retval = fnc(*args, **kwargs)
-        pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
-        return retval
-    return inner
 
 class Network:
-    #@profile
+    # @profile # uncomment to profile model building
     def __init__(self, layers, name=''):
         self.name = name
         self.layers = layers
         self.probes = []
         self.layout_complete = False
-        for i in range(1, len(self.layers)): # skip first layer
+        for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
             self.layers[i].connect_from(self.layers[i-1])
         
     def __call__(self, inputs, t_max, steps_per_image=None, profiling=False, logging=False, partition='loihi'):
@@ -283,3 +269,4 @@ class Network:
                                                          layer.n_outgoing_connections(), layer.n_spikes()) for layer in self.layers]))
         print("-----------------------------------------------")
         return "total   \t{}  \t{}  \t{} \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections(), self.n_spikes())
+
