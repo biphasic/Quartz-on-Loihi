@@ -1,15 +1,14 @@
 class Synapse:
     def __init__(self, pre, post, weight, delay=0):
-        self.name = "{0} --({1};{2})-->\t{3}".format(
-            pre.name, round(weight,2), delay, post.name
-        )
         self.pre = pre
         self.post = post
         self.weight = weight
         self.delay = delay
 
     def __repr__(self):
-        return self.name
+        return "{0} --({1};{2})-->\t{3}".format(
+            self.pre.name, round(weight,2), self.delay, self.post.name
+        )
 
 
 class Neuron:
@@ -28,8 +27,8 @@ class Neuron:
         self.synapses["pre"].append(
             Synapse(pre=self, post=target_neuron, weight=weight, delay=delay)
         )
-        if self != target_neuron:
-            target_neuron.connect_from(self, weight, delay)
+#         if self != target_neuron:
+#             target_neuron.connect_from(self, weight, delay)
 
     def connect_from(self, source_neuron, weight, delay):
         self.synapses["post"].append(

@@ -37,7 +37,8 @@ class Block:
             raise Exception("No neuron with name {} found. Available names are: {}".format(name, self.neurons))
         return res[0]
     
-    def first(self): 
+    def first(self):
+        #return self.neurons[0]
         neuron = self.output_neurons()[0]
         assert "1st" in neuron.name or isinstance(self, quartz.blocks.Input)
         return neuron
