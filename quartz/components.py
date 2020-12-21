@@ -7,7 +7,7 @@ class Synapse:
 
     def __repr__(self):
         return "{0} --({1};{2})-->\t{3}".format(
-            self.pre.name, round(weight,2), self.delay, self.post.name
+            self.pre.name, round(self.weight,2), self.delay, self.post.name
         )
 
 
@@ -21,45 +21,12 @@ class Neuron:
         self.name = name
         self.monitor = monitor
         self.parent_block = parent
-        self.synapses = {"pre": [], "post": []}
+        self.synapses = []
 
     def connect_to(self, target_neuron, weight, delay=0):
-        self.synapses["pre"].append(
+        self.synapses.append(
             Synapse(pre=self, post=target_neuron, weight=weight, delay=delay)
         )
-#         if self != target_neuron:
-#             target_neuron.connect_from(self, weight, delay)
 
-    def connect_from(self, source_neuron, weight, delay):
-        self.synapses["post"].append(
-            Synapse(pre=source_neuron, post=self, weight=weight, delay=delay)
-        )
-
-    def remove_connections_to(self, target_neuron):
-        for synapse in self.synapses["pre"]:
-            if synapse.post == target_neuron:
-                self.synapses["pre"].remove(synapse)
-        target_neuron.remove_connections_from(self)
-
-    def remove_connections_from(self, source_neuron):
-        for synapse in self.synapses["post"]:
-            if synapse.pre == source_neuron:
-                self.synapses["post"].remove(synapse)
-
-    def incoming_synapses(self):
-        return self.synapses["post"]
-
-    def outgoing_synapses(self):
-        return self.synapses["pre"]
-
-    def has_incoming_synapses(self):
-        return self.synapses["post"] != []
-    
-    def reset_outgoing_connections(self):
-        self.synapses["pre"] = []
-    
-    def reset_incoming_connections(self):
-        self.synapses["post"] = []
-        
     def __repr__(self):
         return self.name

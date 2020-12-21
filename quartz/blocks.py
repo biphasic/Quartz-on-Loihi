@@ -13,7 +13,6 @@ class Block:
         self.monitor = monitor
         self.neurons = []
         self.parent_layer = parent_layer
-        self.connections = {"pre": [], "post": []}
     
     def neurons(self): return self.neurons
     
@@ -50,8 +49,8 @@ class Block:
 
     def print_connections(self, maximum=10e7):
         for i, neuron in enumerate(self.neurons):
-            if neuron.synapses['pre'] != []: 
-                [print(connection) for connection in neuron.synapses['pre']]
+            if neuron.synapses != []: 
+                [print(connection) for connection in neuron.synapses]
             elif neuron.type != Neuron.output and neuron.type != Neuron.ready:
                 print("Warning: neuron {} seems not to be connected to any other neuron.".format(neuron.name))
             if i > maximum: break
@@ -62,18 +61,14 @@ class Block:
     def n_outgoing_connections(self):
         n_conns = 0
         for neuron in self.neurons:
-            for synapse in neuron.synapses['pre']:
+            for synapse in neuron.synapses:
                 if synapse.pre.parent_block != synapse.post.parent_block: n_conns += 1
         return n_conns
-        #return sum([len(neuron.synapses['post']) for neuron in self.neurons])
-    
-    def n_incoming_connections(self):
-        return sum([len(neuron.synapses['post']) for neuron in self.neurons])
     
     def n_recurrent_connections(self):
         n_conns = 0
         for neuron in self.neurons:
-            for synapse in neuron.synapses['pre']:
+            for synapse in neuron.synapses:
                 if synapse.pre.parent_block == synapse.post.parent_block: n_conns += 1
         return n_conns
 
@@ -83,30 +78,19 @@ class Block:
     def get_connected_blocks(self):
         connected_blocks = []
         for neuron in self.neurons:
-            for synapse in neuron.incoming_synapses():
-                connected_blocks.append(synapse.pre.parent_block)
-            for synapse in neuron.outgoing_synapses():
-                connected_blocks.append(synapse.pre.parent_block)
+            for synapse in neuron.synapses:
+                connected_blocks.append(synapse.post.parent_block)
         unique_blocks = []
         for block in connected_blocks:
             if block not in unique_blocks:
                 unique_blocks.append(block)
         return unique_blocks # set(connected_blocks)
 
-    def incoming_connections(self):
-        return self.connections["post"]
-
-    def outgoing_connections(self):
-        return self.connections["pre"]
-
-    def has_incoming_connections(self):
-        return self.connections["post"] != []
-
     def get_connection_matrices_to(self, block):
         weights = np.zeros((1, len(block.neurons), len(self.neurons)))
         delays = np.zeros_like(weights)
         for i, neuron in enumerate(self.neurons):
-            for synapse in neuron.outgoing_synapses():
+            for synapse in neuron.synapses:
                 if synapse.post in block.neurons:
                     j = block.neurons.index(synapse.post)
                     for m in range(weights.shape[0]): 

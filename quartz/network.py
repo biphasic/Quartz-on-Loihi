@@ -31,7 +31,7 @@ def profile(fnc):
     return inner
 
 class Network:
-    @profile
+    #@profile
     def __init__(self, layers, name=''):
         self.name = name
         self.layers = layers
@@ -184,18 +184,12 @@ class Network:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block.loihi_group = block_group
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
+                pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
+                pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
                 for neuron in block.neurons:
                     if neuron.loihi_type == Neuron.acc:
                         loihi_neuron = net.createCompartment(acc_proto)
                     else:
-                        pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
-                        no_inputs = len(neuron.incoming_synapses())
-                        if no_inputs > 0:
-                            assert no_inputs <= layer.weight_e
-                            ratio = (layer.weight_e // no_inputs) * no_inputs / layer.weight_e
-                            if ratio != 1:
-                                pulse_mant = layer.weight_e * ratio * 2**layer.weight_exponent - 1
-                        pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
                         loihi_neuron = net.createCompartment(pulse_proto)
                     neuron.loihi_neuron = loihi_neuron
                     block_group.addCompartments(loihi_neuron)
@@ -208,12 +202,12 @@ class Network:
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
-            for target in layer.blocks:
-                target_block = target.loihi_group
-                for source in target.get_connected_blocks():
+            for source in layer.blocks:
+                source_block = source.loihi_group
+                for target in source.get_connected_blocks():
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
-                    source_block = source.loihi_group
+                    target_block = target.loihi_group
                     weight_matrix, delay_matrix, mask_matrix = source.get_connection_matrices_to(target)
                     for weights, delays, mask in zip(weight_matrix, delay_matrix, mask_matrix):
                         proto_map = np.zeros_like(weights).astype(int)
@@ -224,7 +218,7 @@ class Network:
                         if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
                             conn_prototypes[0] = conn_prototypes[1]
                             proto_map = np.zeros_like(weights).astype(int)
-                        if not isinstance(target, quartz.blocks.Input): # the source block would be a spike_generator, which cannot be connected to
+                        if not isinstance(target, quartz.blocks.Input): # we cannot connect to a spike_generator
                             connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
                                                               weight=weights, delay=delays, connectionMask=mask)
         return net

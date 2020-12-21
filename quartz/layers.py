@@ -55,9 +55,6 @@ class Layer:
 
     def n_outgoing_connections(self):
         return sum([block.n_outgoing_connections() for block in self.blocks])
-    
-    def n_incoming_connections(self):
-        return sum([block.n_incoming_connections() for block in self.blocks])
 
     def n_recurrent_connections(self):
         return sum([block.n_recurrent_connections() for block in self.blocks])
