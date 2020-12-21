@@ -168,7 +168,8 @@ class Conv2D(Layer):
 
         input_blocks = np.pad(np.array(input_blocks).reshape(*prev_layer.output_dims), 
                               ((0,0), self.padding, self.padding), 'constant', constant_values=(0))
-        indices = np.arange(len(input_blocks.flatten())).reshape(input_blocks.shape)
+        indices = np.arange(len(input_blocks.ravel())).reshape(input_blocks.shape)
+        input_blocks = input_blocks.ravel()
         n_groups_out = output_channels//self.groups
         n_groups_in = input_channels//self.groups
         prev_trigger = prev_layer.trigger_blocks()[0]
@@ -196,14 +197,14 @@ class Conv2D(Layer):
                     weight_sum = 0
                     delay = 0 # 4 if weight > 0 else 0
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
-                        block_patch = input_blocks.flatten()[patches[input_channel,i,:,:].flatten()]
-                        patch_weights = weights[output_channel,group_weight_index,:,:].flatten()
+                        block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
+                        patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
                         assert len(block_patch) == len(patch_weights)
                         for j, block in enumerate(block_patch):
                             if block != 0: # no connection when trying to connect to padding block
                                 weight = patch_weights[j]
                                 weight_sum += weight
-                                block.first().connect_to(relco.input_neurons[0], weight*self.weight_acc, delay+self.t_min)
+                                block.output_neurons[0].connect_to(relco.input_neurons[0], weight*self.weight_acc, delay+self.t_min)
                     weight_sum = -weight_sum + 1
                     for _ in range(int(abs(weight_sum))):
                         trigger_block.output_neurons[output_channel].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
@@ -264,8 +265,8 @@ class ConvPool2D(Layer):
                 calc_neuron = Neuron(name=self.name + "calc-n{0:3.0f}".format(i), loihi_type=Neuron.acc)
                 conv_neurons += [calc_neuron]
                 for input_channel in range(input_channels):
-                    block_patch = input_blocks[patches[input_channel,i,:,:].flatten()]
-                    patch_weights = self.weights[output_channel,input_channel,:,:].flatten()
+                    block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
+                    patch_weights = self.weights[output_channel,input_channel,:,:].ravel()
                     assert len(block_patch) == len(patch_weights)
                     for j, block in enumerate(block_patch):
                         weight = patch_weights[j]
@@ -295,7 +296,7 @@ class ConvPool2D(Layer):
             # pick only patches that are interesting (stride)
             patches = patches[::self.pool_stride,::self.pool_stride,:,:,:].reshape(-1, *self.pool_kernel_size, patches.shape[-1]) 
             for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
-                neuron_patch = conv_neurons[patches[i,:,:,:].flatten()]
+                neuron_patch = conv_neurons[patches[i,:,:,:].ravel()]
                 maxpool = quartz.blocks.ConvMax(list(neuron_patch), name=self.name+"convmax-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i),
                                                 type=Block.output, parent_layer=self)
                 trigger_block.rectifier_neurons[0].connect_to(maxpool.neuron("1st"), self.weight_e, delay)
