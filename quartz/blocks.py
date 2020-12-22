@@ -51,14 +51,14 @@ class Block:
         n_conns = 0
         for neuron in self.neurons:
             for synapse in neuron.synapses:
-                if synapse.pre.parent_block != synapse.post.parent_block: n_conns += 1
+                if synapse[0].parent_block != synapse[1].parent_block: n_conns += 1
         return n_conns
     
     def n_recurrent_connections(self):
         n_conns = 0
         for neuron in self.neurons:
             for synapse in neuron.synapses:
-                if synapse.pre.parent_block == synapse.post.parent_block: n_conns += 1
+                if synapse[0].parent_block == synapse[1].parent_block: n_conns += 1
         return n_conns
 
     def get_params_at_once(self):
@@ -68,7 +68,7 @@ class Block:
         connected_blocks = []
         for neuron in self.neurons:
             for synapse in neuron.synapses:
-                connected_blocks.append(synapse.post.parent_block)
+                connected_blocks.append(synapse[1].parent_block)
         unique_blocks = []
         for block in connected_blocks:
             if block not in unique_blocks:
@@ -80,8 +80,8 @@ class Block:
         delays = np.zeros_like(weights)
         for i, neuron in enumerate(self.neurons):
             for synapse in neuron.synapses:
-                if synapse.post in block.neurons:
-                    j = block.neurons.index(synapse.post)
+                if synapse[1] in block.neurons:
+                    j = block.neurons.index(synapse[1])
                     for m in range(weights.shape[0]): 
                         # multiple weight matrices are possible for multiple connection from one to the same neuron
                         if weights[m, j, i] != 0 and (m+1) == weights.shape[0]:
@@ -89,14 +89,14 @@ class Block:
                             weights[-1] = 0
                             delays = np.resize(delays, (delays.shape[0]+1, *delays.shape[1:]))
                             delays[-1] = 0
-                            weights[-1, j, i] = synapse.weight
-                            delays[-1, j, i] = synapse.delay
+                            weights[-1, j, i] = synapse[2]
+                            delays[-1, j, i] = synapse[3]
                             break
                         if weights[m, j, i] != 0:
                             continue
                         else:
-                            weights[m, j, i] = synapse.weight
-                            delays[m, j, i] = synapse.delay
+                            weights[m, j, i] = synapse[2]
+                            delays[m, j, i] = synapse[3]
                             break
         mask = np.zeros_like(weights)
         mask[weights!=0] = 1
