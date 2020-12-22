@@ -1,4 +1,4 @@
-from quartz.components import Neuron, Synapse
+from quartz.components import Neuron
 from quartz.blocks import Block
 import quartz
 from sklearn.feature_extraction import image
@@ -199,7 +199,7 @@ class Conv2D(Layer):
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
-                        assert len(block_patch) == len(patch_weights)
+                        assert block_patch.shape[0] == patch_weights.shape[0]
                         for j, block in enumerate(block_patch):
                             if block != 0: # no connection when trying to connect to padding block
                                 weight = patch_weights[j]
@@ -207,10 +207,10 @@ class Conv2D(Layer):
                                 block.output_neurons[0].connect_to(relco.input_neurons[0], weight*self.weight_acc, delay+self.t_min)
                     weight_sum = -weight_sum + 1
                     for _ in range(int(abs(weight_sum))):
-                        trigger_block.output_neurons[output_channel].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
+                        trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], np.sign(weight_sum)*self.weight_acc, delay)
                     weight_rest = weight_sum - int(weight_sum)
-                    trigger_block.output_neurons[output_channel].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, delay)
-                    trigger_block.rectifier_neurons[0].connect_to(relco.neuron("1st"), self.weight_e, delay)
+                    trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], weight_rest*self.weight_acc, delay)
+                    trigger_block.rectifier_neurons[0].connect_to(relco.output_neurons[0], self.weight_e, delay)
                     if biases is not None:
                         bias_sign = np.sign(biases[output_channel])
                         splitter.first().connect_to(relco.input_neurons[0], bias_sign*self.weight_acc, self.t_min)
