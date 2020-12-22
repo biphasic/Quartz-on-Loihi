@@ -263,10 +263,10 @@ class Network:
         print(self.compartments_on_core)
 
     def __repr__(self):
-        print("name     \tn_comp \tn_param n_conn n_spikes")
-        print("-----------------------------------------------")
-        print('\n'.join(["{:11s}\t{:5d}\t{:6d}\t{:6d}\t{:6d}".format(layer.name, layer.n_compartments(), layer.n_parameters(),
-                                                         layer.n_outgoing_connections(), layer.n_spikes()) for layer in self.layers]))
-        print("-----------------------------------------------")
-        return "total   \t{}  \t{}  \t{} \t{}".format(self.n_compartments(), self.n_parameters(), self.n_outgoing_connections(), self.n_spikes())
+        print("layer name   \t  n_comp n_spikes n_param    n_conn")
+        print("---------------------------------------------------")
+        print('\n'.join(["{:11s}\t{:8d} {:8d} {:7d} {:9d}".format(layer.name, layer.n_compartments(), layer.n_spikes(), layer.n_parameters(),
+                                                         layer.n_outgoing_connections()) for layer in self.layers]))
+        print("---------------------------------------------------")
+        return "{:11s}\t{:8d} {:8d} {:7d} {:9d}".format("total", self.n_compartments(), self.n_spikes(), self.n_parameters(), self.n_outgoing_connections())
 
