@@ -1,4 +1,4 @@
-from quartz.components import Neuron, Synapse
+from quartz.components import Neuron
 from quartz.utils import decode_spike_timings, profile
 import quartz
 import numpy as np

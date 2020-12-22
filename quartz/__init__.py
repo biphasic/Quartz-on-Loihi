@@ -1,4 +1,4 @@
-from .components import Neuron, Synapse
+from .components import Neuron
 from .blocks import *
 from .layers import *
 from .network import Network

@@ -1,5 +1,5 @@
 import numpy as np
-from quartz.components import Neuron, Synapse
+from quartz.components import Neuron
 import quartz
 import ipdb
  
