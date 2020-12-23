@@ -126,7 +126,7 @@ class Dense(Layer):
                 trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
             weight_rest = weight_sum - int(weight_sum)
             trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, delay)
-            trigger_block.rectifier_neurons[0].connect_to(relco.neuron("1st"), self.weight_e, delay)
+            trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 10*self.weight_acc, delay)
             if biases is not None:
                 bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{0:2.0f}:".format(i), 
                                                    type=Block.hidden, parent_layer=self)

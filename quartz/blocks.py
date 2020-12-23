@@ -169,15 +169,11 @@ class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
         calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
-        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
-        self.neurons = [calc, first]
+        self.neurons = [calc]
         self.input_neurons += [calc]
-        self.output_neurons += [first]
-
+        self.output_neurons += [calc]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        calc.connect_to(calc, -weight_acc)
-        calc.connect_to(first, weight_e)
-        first.connect_to(first, -weight_e)
+        calc.connect_to(calc, -10*weight_acc)
 
         
 class ConvMax(Block):

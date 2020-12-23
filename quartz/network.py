@@ -193,12 +193,18 @@ class Network:
                 for target in source.get_connected_blocks():
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
                                        nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
+                    excite_prototype = nx.ConnectionPrototype(weightExponent=6, signMode=2)
+                    inhibit_prototype = nx.ConnectionPrototype(weightExponent=6, signMode=3)
                     target_block = target.loihi_group
                     weight_matrix, delay_matrix, mask_matrix = source.get_connection_matrices_to(target)
                     for weights, delays, mask in zip(weight_matrix, delay_matrix, mask_matrix):
                         proto_map = np.zeros_like(weights).astype(int)
                         proto_map[weights<0] = 1
                         weights = weights.round()
+                        if (weights == 10*layer.weight_acc).any():
+                            
+                            ok = source
+                            ipdb.set_trace()
                         weights[weights>255] = 255
                         weights[weights<-255] = -255
                         if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
