@@ -2,7 +2,8 @@ import numpy as np
 from quartz.components import Neuron
 import quartz
 import ipdb
- 
+from collections import Counter
+
 
 class Block:
     input, hidden, output, trigger = range(4)
@@ -76,28 +77,28 @@ class Block:
         return unique_blocks
 
     def get_connection_matrices_to(self, block):
-        weights = np.zeros((1, len(block.neurons), len(self.neurons)))
+        all_synapses = [synapse for neuron in self.neurons for synapse in neuron.synapses]
+        relevant_synapses = [(pre, post, weight, delay) for pre, post, weight, delay in all_synapses if post in block.neurons]
+        endpoints = [(pre, post) for pre, post, weight, delay in relevant_synapses]
+        counter=Counter(endpoints)
+        max_n_conn_between_endpoints = max(counter.values())
+        
+        pre_list = dict(zip(self.neurons, range(len(self.neurons))))
+        post_list = dict(zip(block.neurons, range(len(block.neurons))))
+        
+        weights = np.zeros((max_n_conn_between_endpoints, len(block.neurons), len(self.neurons)))
         delays = np.zeros_like(weights)
-        for i, neuron in enumerate(self.neurons):
-            for synapse in neuron.synapses:
-                if synapse[1] in block.neurons:
-                    j = block.neurons.index(synapse[1])
-                    for m in range(weights.shape[0]): 
-                        # multiple weight matrices are possible for multiple connection from one to the same neuron
-                        if weights[m, j, i] != 0 and (m+1) == weights.shape[0]:
-                            weights = np.resize(weights, (weights.shape[0]+1, *weights.shape[1:]))
-                            weights[-1] = 0
-                            delays = np.resize(delays, (delays.shape[0]+1, *delays.shape[1:]))
-                            delays[-1] = 0
-                            weights[-1, j, i] = synapse[2]
-                            delays[-1, j, i] = synapse[3]
-                            break
-                        if weights[m, j, i] != 0:
-                            continue
-                        else:
-                            weights[m, j, i] = synapse[2]
-                            delays[m, j, i] = synapse[3]
-                            break
+        
+        c = 0
+        for pre, post, weight, delay in relevant_synapses:
+            i = pre_list[pre]
+            j = post_list[post]
+            if weights[c,j,i] != 0: c+=1
+            weights[c,j,i] = weight
+            delays[c,j,i] = delay
+
+        ipdb.set_trace()
+
         mask = np.zeros_like(weights)
         mask[weights!=0] = 1
         return weights, delays, mask
