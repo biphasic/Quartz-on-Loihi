@@ -206,7 +206,7 @@ class Trigger(Block):
             trigger_neuron.connect_to(trigger_neuron, -weight_acc)
             self.neurons += [trigger_neuron]
             self.output_neurons += [trigger_neuron]
-        self.neurons[-1].connect_to(rect, weight_acc)
+        # self.neurons[-1].connect_to(rect, weight_acc)
 
 
 class Output(Block):

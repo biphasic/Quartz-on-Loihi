@@ -198,20 +198,41 @@ class Network:
                     target_block = target.loihi_group
                     weight_matrix, delay_matrix, mask_matrix = source.get_connection_matrices_to(target)
                     for weights, delays, mask in zip(weight_matrix, delay_matrix, mask_matrix):
+                        temporary_prototypes = conn_prototypes
                         proto_map = np.zeros_like(weights).astype(int)
                         proto_map[weights<0] = 1
                         weights = weights.round()
-                        if (weights == 10*layer.weight_acc).any():
+                        if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
+                            temporary_prototypes[0] = conn_prototypes[1]
+                            proto_map = np.zeros_like(weights).astype(int)
                             
-                            ok = source
-                            ipdb.set_trace()
+                        if (weights == 10*layer.weight_acc).any():
+                            temporary_prototypes = [excite_prototype]
+                            proto_map[weights == 10*layer.weight_acc] = 0
+                            if len(weights[(weights>0) & (weights<(10*layer.weight_acc))])>0:
+                                temporary_prototypes.append(conn_prototypes[0])
+                                proto_map[weights>0] = temporary_prototypes.index(conn_prototypes[0])
+                            if len(weights[weights<0])>0:
+                                temporary_prototypes.append(conn_prototypes[1])
+                                proto_map[weights<0] = temporary_prototypes.index(conn_prototypes[1])
+                            
+                        elif (weights == -10*layer.weight_acc).any():
+                            temporary_prototypes = [inhibit_prototype]
+                            proto_map[weights == -10*layer.weight_acc] = 0
+                            if len(weights[weights>0])>0:
+                                temporary_prototypes.append(conn_prototypes[0])
+                                proto_map[weights>0] = temporary_prototypes.index(conn_prototypes[0])
+                            if len(weights[weights<0 and weights>(-10*layer.weight_acc)])>0:
+                                temporary_prototypes.append(conn_prototypes[1])
+                                proto_map[weights<0] = temporary_prototypes.index(conn_prototypes[1])
+                        ok = source
+                        #ipdb.set_trace()
+                        
                         weights[weights>255] = 255
                         weights[weights<-255] = -255
-                        if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
-                            conn_prototypes[0] = conn_prototypes[1]
-                            proto_map = np.zeros_like(weights).astype(int)
+
                         if not isinstance(target, quartz.blocks.Input): # we cannot connect to a spike_generator
-                            connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                            connection = source_block.connect(target_block, prototype=temporary_prototypes, prototypeMap=proto_map,
                                                               weight=weights, delay=delays, connectionMask=mask)
         return net
 

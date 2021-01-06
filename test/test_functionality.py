@@ -14,9 +14,9 @@ class TestFunctionality(unittest.TestCase):
         ((1,5,5,), 15),
     ])
     def test_bias(self, dim_input, dim_output):
-        t_max = 2**8
+        t_max = 2**7
         weights = np.ones((dim_output,np.product(dim_input)))
-        biases = (np.random.rand(dim_output) - 0.5)
+        biases = np.random.rand(dim_output) - 0.5
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input),
@@ -95,4 +95,4 @@ class TestFunctionality(unittest.TestCase):
         loihi_output = loihi_model(values, t_max)
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         self.assertEqual(loihi_output, np.maximum(model_output.flatten(), 0))
-        self.assertGreater(loihi_model.data[1]['l2-monitor:trigger:'], relco_probe.output()[1]['l1-dense:relco-n  0:1st'])
+        self.assertGreater(loihi_model.data[1]['l2-monitor:trigger:'], relco_probe.output()[1]['l1-dense:relco-n  0:calc'])
