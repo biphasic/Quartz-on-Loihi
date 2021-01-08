@@ -33,6 +33,7 @@ class Network:
         if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*self.t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
+        print(input_spike_list)
         self.data = []
         self.steps_per_image = steps_per_image
         if not logging:

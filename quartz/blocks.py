@@ -119,6 +119,7 @@ class Input(Block):
         output = Neuron(type=Neuron.output, name=self.name+"neuron", parent=self)
         self.neurons = [output]
         self.output_neurons += [output]
+        self.rectifier_neurons += [output]
     
     
 class ConstantDelay(Block):
@@ -212,11 +213,9 @@ class Trigger(Block):
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         rect.connect_to(rect, -weight_acc)
         for t in range(n_channels):
-            trigger_neuron = Neuron(name=self.name + "trigger" + str(t), type=Neuron.output, loihi_type=Neuron.acc, parent=self)
-            trigger_neuron.connect_to(trigger_neuron, -weight_acc)
+            trigger_neuron = Neuron(name=self.name + "trigger" + str(t), type=Neuron.output, parent=self)
             self.neurons += [trigger_neuron]
             self.output_neurons += [trigger_neuron]
-        # self.neurons[-1].connect_to(rect, weight_acc)
 
 
 class Output(Block):
