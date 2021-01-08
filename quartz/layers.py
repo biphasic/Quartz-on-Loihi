@@ -118,7 +118,7 @@ class Dense(Layer):
                                             monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
-                delay = 0 #delay = 5 if weight > 0 else 0
+                delay = 1 #delay = 5 if weight > 0 else 0
                 block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay+self.t_min)
             self.blocks += [relco]
             # negative sum of quantized weights to balance first spikes and  +1 is for readout
@@ -334,5 +334,5 @@ class MonitorLayer(Layer):
             output_neuron = Neuron(name=block.name + "monitor-{0:3.0f}".format(i), type=Block.output, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
-            block.first().connect_to(output_neuron, self.weight_e, 1)
+            block.first().connect_to(output_neuron, self.weight_e, 0)
             trigger_block.output_neurons[0].connect_to(output_neuron, self.weight_e)

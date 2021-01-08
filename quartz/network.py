@@ -193,6 +193,7 @@ class Network:
                 for target in source.get_connected_blocks():
                     target_block = target.loihi_group
                     weight_matrix, delay_matrix, exponent_matrix, mask_matrix = source.get_connection_matrices_to(target)
+                    if weight_matrix is None: continue
                     weight_matrix = weight_matrix.round()
 #                     weight_matrix[weight_matrix>255] = 255
 #                     weight_matrix[weight_matrix<-255] = -255

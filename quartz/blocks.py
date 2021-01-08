@@ -79,11 +79,10 @@ class Block:
     def get_connection_matrices_to(self, block):
         ok = block
         all_synapses = [synapse for neuron in self.neurons for synapse in neuron.synapses]
-        relevant_synapses = [(pre, post, weight, delay) for pre, post, weight, delay in all_synapses if (post in block.neurons)]# and (weight != 0))]
+        relevant_synapses = [(pre, post, weight, delay) for pre, post, weight, delay in all_synapses if (post in block.neurons) & (weight != 0)]
         endpoints = [(pre, post) for pre, post, weight, delay in relevant_synapses]
         counter=Counter(endpoints)
-        
-        #if relevant_synapses == []: ipdb.set_trace()
+        if relevant_synapses == []: return None, None, None, None
         
         max_n_conn_between_endpoints = max(counter.values())
         pre_index_list = dict(zip(self.neurons, range(len(self.neurons))))
@@ -97,12 +96,9 @@ class Block:
         for pre, post, weight, delay in relevant_synapses:
             i = pre_index_list[pre]
             j = post_index_list[post]
-            
-#             if self.parent_layer.weight_acc == 0: ipdb.set_trace()
-#             if weight == 0: ipdb.set_trace()
-            exponent = np.log2(abs(weight)/self.parent_layer.weight_acc)
+            exponent = np.log2(abs(weight)/block.parent_layer.weight_acc)
             if weights[c,j,i] != 0: c+=1
-            if exponent > 1 & isinstance(exponent, int):
+            if exponent > 0 & isinstance(exponent, int):
                 weights[c,j,i] = weight / 2**exponent
                 exponents[c,j,i] = exponent
             elif exponent <= 1:
