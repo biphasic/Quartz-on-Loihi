@@ -77,31 +77,44 @@ class Block:
         return unique_blocks
 
     def get_connection_matrices_to(self, block):
+        ok = block
         all_synapses = [synapse for neuron in self.neurons for synapse in neuron.synapses]
-        relevant_synapses = [(pre, post, weight, delay) for pre, post, weight, delay in all_synapses if post in block.neurons]
+        relevant_synapses = [(pre, post, weight, delay) for pre, post, weight, delay in all_synapses if (post in block.neurons)]# and (weight != 0))]
         endpoints = [(pre, post) for pre, post, weight, delay in relevant_synapses]
         counter=Counter(endpoints)
-        max_n_conn_between_endpoints = max(counter.values())
         
-        pre_list = dict(zip(self.neurons, range(len(self.neurons))))
-        post_list = dict(zip(block.neurons, range(len(block.neurons))))
+        #if relevant_synapses == []: ipdb.set_trace()
+        
+        max_n_conn_between_endpoints = max(counter.values())
+        pre_index_list = dict(zip(self.neurons, range(len(self.neurons))))
+        post_index_list = dict(zip(block.neurons, range(len(block.neurons))))
         
         weights = np.zeros((max_n_conn_between_endpoints, len(block.neurons), len(self.neurons)))
         delays = np.zeros_like(weights)
+        exponents = np.zeros_like(weights)
         
         c = 0
         for pre, post, weight, delay in relevant_synapses:
-            i = pre_list[pre]
-            j = post_list[post]
+            i = pre_index_list[pre]
+            j = post_index_list[post]
+            
+#             if self.parent_layer.weight_acc == 0: ipdb.set_trace()
+#             if weight == 0: ipdb.set_trace()
+            exponent = np.log2(abs(weight)/self.parent_layer.weight_acc)
             if weights[c,j,i] != 0: c+=1
-            weights[c,j,i] = weight
+            if exponent > 1 & isinstance(exponent, int):
+                weights[c,j,i] = weight / 2**exponent
+                exponents[c,j,i] = exponent
+            elif exponent <= 1:
+                weights[c,j,i] = weight
+                exponents[c,j,i] = 0
+            else:
+                ipdb.set_trace()
             delays[c,j,i] = delay
-
-        ipdb.set_trace()
-
-        mask = np.zeros_like(weights)
-        mask[weights!=0] = 1
-        return weights, delays, mask
+            
+        mask = np.full(weights.shape, False)
+        mask[weights!=0] = True
+        return weights, delays, exponents, mask
 
 
 class Input(Block):
@@ -174,7 +187,7 @@ class ReLCo(Block):
         self.input_neurons += [calc]
         self.output_neurons += [calc]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        calc.connect_to(calc, -10*weight_acc)
+        calc.connect_to(calc, -weight_acc) #2**6*
 
         
 class ConvMax(Block):

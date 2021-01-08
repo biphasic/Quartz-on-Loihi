@@ -191,49 +191,39 @@ class Network:
             for source in layer.blocks:
                 source_block = source.loihi_group
                 for target in source.get_connected_blocks():
-                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=2),
-                                       nx.ConnectionPrototype(weightExponent=layer.weight_exponent, signMode=3),]
-                    excite_prototype = nx.ConnectionPrototype(weightExponent=6, signMode=2)
-                    inhibit_prototype = nx.ConnectionPrototype(weightExponent=6, signMode=3)
                     target_block = target.loihi_group
-                    weight_matrix, delay_matrix, mask_matrix = source.get_connection_matrices_to(target)
-                    for weights, delays, mask in zip(weight_matrix, delay_matrix, mask_matrix):
-                        temporary_prototypes = conn_prototypes
-                        proto_map = np.zeros_like(weights).astype(int)
-                        proto_map[weights<0] = 1
-                        weights = weights.round()
-                        if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # edge case where only negative connections and conn_prototypes[0] is unused
-                            temporary_prototypes[0] = conn_prototypes[1]
+                    weight_matrix, delay_matrix, exponent_matrix, mask_matrix = source.get_connection_matrices_to(target)
+                    weight_matrix = weight_matrix.round()
+#                     weight_matrix[weight_matrix>255] = 255
+#                     weight_matrix[weight_matrix<-255] = -255
+                    
+                    for weights, delays, exponents, mask in zip(weight_matrix, delay_matrix, exponent_matrix, mask_matrix):
+                        if mask.sum() != 0: # some weight maps are zeros
                             proto_map = np.zeros_like(weights).astype(int)
-                            
-                        if (weights == 10*layer.weight_acc).any():
-                            temporary_prototypes = [excite_prototype]
-                            proto_map[weights == 10*layer.weight_acc] = 0
-                            if len(weights[(weights>0) & (weights<(10*layer.weight_acc))])>0:
-                                temporary_prototypes.append(conn_prototypes[0])
-                                proto_map[weights>0] = temporary_prototypes.index(conn_prototypes[0])
-                            if len(weights[weights<0])>0:
-                                temporary_prototypes.append(conn_prototypes[1])
-                                proto_map[weights<0] = temporary_prototypes.index(conn_prototypes[1])
-                            
-                        elif (weights == -10*layer.weight_acc).any():
-                            temporary_prototypes = [inhibit_prototype]
-                            proto_map[weights == -10*layer.weight_acc] = 0
-                            if len(weights[weights>0])>0:
-                                temporary_prototypes.append(conn_prototypes[0])
-                                proto_map[weights>0] = temporary_prototypes.index(conn_prototypes[0])
-                            if len(weights[weights<0 and weights>(-10*layer.weight_acc)])>0:
-                                temporary_prototypes.append(conn_prototypes[1])
-                                proto_map[weights<0] = temporary_prototypes.index(conn_prototypes[1])
-                        ok = source
-                        #ipdb.set_trace()
-                        
-                        weights[weights>255] = 255
-                        weights[weights<-255] = -255
+                            # create all the connection prototypes used for this connection by checking for unique combinations
+                            # of weight exponent and sign mode                       
+                            negative_sign_mask = (weights < 0).astype(int)
+                            stacked_masks = np.vstack((exponents[mask].ravel(), negative_sign_mask[mask].ravel()))
+                            unique_combs = np.unique(stacked_masks, axis=1).T
+                            conn_prototypes = [nx.ConnectionPrototype(weightExponent=expo+layer.weight_exponent, signMode=neg_sign+2) 
+                                               for (expo, neg_sign) in unique_combs]
 
-                        if not isinstance(target, quartz.blocks.Input): # we cannot connect to a spike_generator
-                            connection = source_block.connect(target_block, prototype=temporary_prototypes, prototypeMap=proto_map,
-                                                              weight=weights, delay=delays, connectionMask=mask)
+                            for i, proto in enumerate(conn_prototypes):
+                                if proto.signMode == 2:
+                                    proto_map[(weights>=0) & (exponents==proto.weightExponent)] = i
+                                else:
+                                    proto_map[(weights<0) & (exponents==proto.weightExponent)] = i
+
+                            if (exponents > 0).any():
+                                print(exponents)
+                                print(conn_prototypes)
+                                print(conn_prototypes[0].weightExponent)
+                                print(conn_prototypes[0].signMode)
+                                ipdb.set_trace()
+
+                            if not isinstance(target, quartz.blocks.Input): # we cannot connect to a spike_generator
+                                connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
+                                                                  weight=weights, delay=delays, connectionMask=mask)
         return net
 
     def add_input_spikes(self, spike_list):
