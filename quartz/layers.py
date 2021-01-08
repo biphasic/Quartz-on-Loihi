@@ -119,7 +119,7 @@ class Dense(Layer):
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
                 delay = 0
-                block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay+self.t_min)
+                block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay)#+self.t_min)
             self.blocks += [relco]
             # negative sum of quantized weights to balance first spikes and  +1 is for readout
             weight_sum = -sum((weights[i,:]*255).round()/255) + 1

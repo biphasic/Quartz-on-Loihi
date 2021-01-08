@@ -95,4 +95,44 @@ class TestFunctionality(unittest.TestCase):
         loihi_output = loihi_model(values, t_max)
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         self.assertEqual(loihi_output, np.maximum(model_output.flatten(), 0))
-        self.assertGreater(loihi_model.data[1]['l2-monitor:trigger:'], relco_probe.output()[1]['l1-dense:relco-n  0:calc'])
+        self.assertGreater(loihi_model.data[1]['l2-monitor:trigger:'], relco_probe.output()[1]['l1-dense:relco-n  0:calc'])  
+
+    @parameterized.expand([
+        ([1,], [0,], 2**8),
+        ([1,], [0.5,], 2**8),
+        ([1,], [1.,], 2**8),
+    ])
+    def test_simple_input(self, weights, values, t_max):
+        dim_input = (1,1,1)
+        dim_output = 1
+        weights = np.array([weights])
+        values = np.array(values)
+        
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=dim_input),
+            layers.Dense(weights=weights, biases=None, rectifying=True, weight_acc=128),
+            layers.MonitorLayer(),
+        ])
+        loihi_output = loihi_model(values, t_max)
+        self.assertEqual(loihi_output, values)
+        
+    @parameterized.expand([
+        ([1,], [1,], [0,], 2**8),
+        ([1,], [1,], [0.5,], 2**8),
+        ([1,], [1,], [1,], 2**8),
+    ])
+    def test_2layer_simple_input(self, weights1, weights2, values, t_max):
+        dim_input = (1,1,1)
+        dim_output = 1
+        weights1 = np.array([weights1])
+        weights2 = np.array([weights2])
+        values = np.array(values)
+        
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=dim_input),
+            layers.Dense(weights=weights1, biases=None, rectifying=True, weight_acc=128),
+            layers.Dense(weights=weights2, biases=None, rectifying=True, weight_acc=128),
+            layers.MonitorLayer(),
+        ])
+        loihi_output = loihi_model(values, t_max)
+        self.assertEqual(loihi_output, values)
