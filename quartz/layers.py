@@ -61,7 +61,7 @@ class Layer:
 
     def check_block_delays(self, t_max, numDendriticAccumulators):
         for block in self.blocks:
-            if isinstance(block, quartz.blocks.ConstantDelay):
+            if isinstance(block, quartz.blocks.Bias):
                 if not block.layout: block.layout_delays(t_max, numDendriticAccumulators)
 
     def print_connections(self, maximum=10e7):
@@ -79,7 +79,8 @@ class InputLayer(Layer):
         self.layer_n = 0
         self.output_dims = dims
         trigger_block = quartz.blocks.Input(name=name+"trigger:", type=Block.trigger, parent_layer=self)
-        self.blocks += [trigger_block]
+        trigger_block_bias = quartz.blocks.Input(name=name+"trigger-bias:", type=Block.trigger, parent_layer=self)
+        self.blocks += [trigger_block, trigger_block_bias]
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
@@ -119,26 +120,24 @@ class Dense(Layer):
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
                 delay = 0
-                block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay)#+self.t_min)
+                block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay)
             self.blocks += [relco]
-            # negative sum of quantized weights to balance first spikes and  +1 is for readout
-            weight_sum = -sum((weights[i,:]*255).round()/255) + 1
+            if biases is not None:
+                bias = quartz.blocks.Bias(value=biases[i], name=self.name+"const-n{0:2.0f}:".format(i), 
+                                                   type=Block.hidden, parent_layer=self)
+                trigger_index = 1 if isinstance(prev_layer, quartz.layers.InputLayer) else 0
+                prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, 0)
+                bias_sign = np.sign(biases[i]) + biases[i] == 0 # make it positive in case biases[i] == 0
+                bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)
+                self.blocks += [bias]
+            # negative sum of quantized weights to balance first spikes and bias
+            bias_balance = (bias_sign - 1) if biases is not None else 1
+            weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance
             for _ in range(int(abs(weight_sum))):
                 trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
             weight_rest = weight_sum - int(weight_sum)
             trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, delay)
             trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 1, delay) # 2**6*self.weight_acc, delay)
-            if biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=biases[i], name=self.name+"const-n{0:2.0f}:".format(i), 
-                                                   type=Block.hidden, parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(i), 
-                                                  type=Block.hidden, parent_layer=self)
-                bias.output_neurons[0].connect_to(splitter.input_neurons[0], self.weight_e)
-                prev_trigger.output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, trigger_delay) # possibly be smarter about this one
-                bias_sign = np.sign(biases[i])
-                splitter.first().connect_to(relco.input_neurons[0], bias_sign*self.weight_acc, self.t_min)
-                splitter.second().connect_to(relco.input_neurons[0], -bias_sign*self.weight_acc)
-                self.blocks += [bias, splitter]
 
 
 class Conv2D(Layer):
@@ -186,7 +185,7 @@ class Conv2D(Layer):
                 patches = np.stack(patches)
                 assert np.product(side_lengths) == patches.shape[1]
                 if biases is not None:
-                    bias = quartz.blocks.ConstantDelay(value=biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
+                    bias = quartz.blocks.Bias(value=biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
                                                        type=Block.hidden, monitor=False, parent_layer=self)
                     splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                                       type=Block.hidden, monitor=False, parent_layer=self)
@@ -261,7 +260,7 @@ class ConvPool2D(Layer):
             patches = np.stack(patches)
             assert np.product(side_lengths) == patches.shape[1]
             if self.biases is not None:
-                bias = quartz.blocks.ConstantDelay(value=self.biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
+                bias = quartz.blocks.Bias(value=self.biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
                                                    type=Block.hidden, parent_layer=self)
                 splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
                                                   type=Block.hidden, parent_layer=self)

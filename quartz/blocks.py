@@ -122,10 +122,10 @@ class Input(Block):
         self.rectifier_neurons += [output]
     
     
-class ConstantDelay(Block):
+class Bias(Block):
     def __init__(self, value, name="bias:", type=Block.hidden, **kwargs):
         self.value = abs(value)
-        super(ConstantDelay, self).__init__(name=name, type=type, **kwargs)
+        super(Bias, self).__init__(name=name, type=type, **kwargs)
         input_ = Neuron(type=Neuron.input, name=self.name+"input", parent=self)
         output = Neuron(type=Neuron.output, name=self.name+"output", parent=self)
         self.neurons = [input_, output]
@@ -134,27 +134,18 @@ class ConstantDelay(Block):
         self.layout = False
 
     def layout_delays(self, t_max, numDendriticAccumulators):
-        delay = round(self.value * t_max)
-        numDendriticAccumulators = numDendriticAccumulators-2
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
+        # subtract 2*t_neu for delay of input, output neurons
+        delay = np.maximum((t_max*(1-self.value)).round() - 2*t_neu, 0)
+        numDendriticAccumulators = numDendriticAccumulators-2
         input_, output = self.neurons
-        self.neurons = [] + [input_]
+        self.neurons = [input_]
         i = 0
-        while(delay>(numDendriticAccumulators-t_min)):
+        while(delay>(numDendriticAccumulators+1)):
             intermediate = Neuron(name=self.name+"intermediate"+str(i), parent=self)
             self.neurons[-1].connect_to(intermediate, weight_e, numDendriticAccumulators)
             self.neurons += [intermediate]
-            delay -= numDendriticAccumulators
-            i += 1
-        self.neurons[-1].connect_to(output, weight_e, delay+t_min)
-        delay = i*t_neu
-        self.neurons.append(self.neurons.pop(0)) # move input_ to the end
-        i = 0
-        while(delay>numDendriticAccumulators):
-            intermediate = Neuron(name=self.name+"intermediate-output"+str(i), parent=self)
-            self.neurons[-1].connect_to(intermediate, weight_e, numDendriticAccumulators)
-            self.neurons += [intermediate]
-            delay -= (numDendriticAccumulators+1)
+            delay -= (numDendriticAccumulators + 1)
             i += 1
         self.neurons[-1].connect_to(output, weight_e, delay)
         self.neurons += [output]

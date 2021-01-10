@@ -203,7 +203,7 @@ class Network:
                         if mask.sum() != 0: # some weight maps are zeros
                             proto_map = np.zeros_like(weights).astype(int)
                             # create all the connection prototypes used for this connection by checking for unique combinations
-                            # of weight exponent and sign mode                       
+                            # of weight exponent and sign mode
                             negative_sign_mask = (weights < 0).astype(int)
                             stacked_masks = np.vstack((exponents[mask].ravel(), negative_sign_mask[mask].ravel()))
                             unique_combs = np.unique(stacked_masks, axis=1).T

@@ -36,11 +36,13 @@ def decode_values_into_spike_input(samples, t_max, steps_per_sample, t_min=1, st
     if samples.shape[0] > 1 and steps_per_sample == 0: raise Exception("Specify # of steps per sample")
     inputs = [[] for i in range(int(np.product(samples.shape[1:])))]
     inputs.append([])
+    inputs.append([])
     for sample in samples:
-        inputs[0] += [int(start_time+t_max-t_min)]
+        inputs[0] += [int(start_time+t_max-t_min)] # trigger for other triggers
+        inputs[1] += [int(start_time)] # trigger for biases
         for c, channel in enumerate(sample):
             for i, value in enumerate(channel.flatten()):
-                inputs[c*len(channel.flatten())+i+1] += [int((t_max*(1-value)).round() + start_time)]
+                inputs[c*len(channel.flatten())+i+2] += [int((t_max*(1-value)).round() + start_time)]
         start_time += steps_per_sample
     return inputs
 
