@@ -33,7 +33,6 @@ class Network:
         if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*self.t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
-        print(input_spike_list)
         self.data = []
         self.steps_per_image = steps_per_image
         if not logging:
@@ -215,13 +214,6 @@ class Network:
                                     proto_map[(weights>=0) & (exponents==proto.weightExponent)] = i
                                 else:
                                     proto_map[(weights<0) & (exponents==proto.weightExponent)] = i
-
-                            if (exponents > 0).any():
-                                print(exponents)
-                                print(conn_prototypes)
-                                print(conn_prototypes[0].weightExponent)
-                                print(conn_prototypes[0].signMode)
-                                ipdb.set_trace()
 
                             if not isinstance(target, quartz.blocks.Input): # we cannot connect to a spike_generator
                                 connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,

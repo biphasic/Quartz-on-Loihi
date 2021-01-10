@@ -141,7 +141,7 @@ class Bias(Block):
         input_, output = self.neurons
         self.neurons = [input_]
         i = 0
-        while(delay>(numDendriticAccumulators+1)):
+        while(delay>(numDendriticAccumulators)):
             intermediate = Neuron(name=self.name+"intermediate"+str(i), parent=self)
             self.neurons[-1].connect_to(intermediate, weight_e, numDendriticAccumulators)
             self.neurons += [intermediate]
@@ -152,21 +152,6 @@ class Bias(Block):
         self.layout = True
 
 
-class Splitter(Block):
-    def __init__(self, name="split:", type=Block.hidden, **kwargs):
-        super(Splitter, self).__init__(name=name, type=type, **kwargs)
-        input_ = Neuron(type=Neuron.input, name=name + "input", parent=self)
-        first = Neuron(type=Neuron.output, name=name + "1st", parent=self)
-        last = Neuron(type=Neuron.output, name=name + "2nd", parent=self)
-        self.neurons = [input_, first, last]
-        self.input_neurons += [input_]
-        self.output_neurons += [first, last]
-        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        input_.connect_to(first, weight_e)
-        first.connect_to(first, -weight_e)
-        input_.connect_to(last, 0.5*weight_e)
-
-
 class ReLCo(Block):
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
@@ -175,7 +160,7 @@ class ReLCo(Block):
         self.input_neurons += [calc]
         self.output_neurons += [calc]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        calc.connect_to(calc, -weight_acc) #2**6*
+        calc.connect_to(calc, -2**6*weight_acc)
 
         
 class ConvMax(Block):

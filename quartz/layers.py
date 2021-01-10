@@ -127,7 +127,8 @@ class Dense(Layer):
                                                    type=Block.hidden, parent_layer=self)
                 trigger_index = 1 if isinstance(prev_layer, quartz.layers.InputLayer) else 0
                 prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, 0)
-                bias_sign = np.sign(biases[i]) + biases[i] == 0 # make it positive in case biases[i] == 0
+                bias_sign = np.sign(biases[i])
+                if bias_sign == 0: bias_sign = 1  # make it positive in case biases[i] == 0
                 bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)
                 self.blocks += [bias]
             # negative sum of quantized weights to balance first spikes and bias
@@ -137,7 +138,7 @@ class Dense(Layer):
                 trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
             weight_rest = weight_sum - int(weight_sum)
             trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, delay)
-            trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 1, delay) # 2**6*self.weight_acc, delay)
+            trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*self.weight_acc, delay)
 
 
 class Conv2D(Layer):
