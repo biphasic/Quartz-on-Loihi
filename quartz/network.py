@@ -30,7 +30,7 @@ class Network:
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None: steps_per_image = int((len(self.layers)-0.3)*self.t_max)
+        if steps_per_image == None: steps_per_image = int((len(self.layers)+0.9)*self.t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
         self.data = []
@@ -52,8 +52,8 @@ class Network:
             return self.energy_probe
         else:
             self.data = output_probe.output()
-            output_array = np.array([value for (key, value) in sorted(output_probe.output()[0].items()) if len(value)>=batch_size]).flatten()
-            last_layer = self.layers[-2]
+            output_array = output_probe.output()
+            last_layer = self.layers[-1]
             if isinstance(last_layer, quartz.layers.Dense):
                 if last_layer.rectifying: # False: # 
                     output_array = output_array.reshape(last_layer.output_dims, batch_size).T
@@ -78,9 +78,9 @@ class Network:
         net = self.connect_blocks(net)
         # add inputs
         self.add_input_spikes(input_spike_list)
-        # compile the whole thing
-        board = self.compile_net(net)
-        return board
+        # compile the whole thing and return board
+        print("{} Compiling now...".format(datetime.datetime.now()))
+        return nx.N2Compiler().compile(net)
 
     def n_compartments(self):
         return sum([layer.n_compartments() for layer in self.layers])
@@ -179,7 +179,7 @@ class Network:
                     if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))
                 if block.monitor: block.probe.set_loihi_probe(block_group.probe(measurements))
             if layer.monitor:
-                layer.probe.set_loihi_probe([block.loihi_group.probe(layer_measurements)[0] for block in layer.blocks])
+                layer.probe.set_loihi_probe([block.loihi_group.probe(layer_measurements)[0] for block in layer.blocks if not isinstance(block, quartz.blocks.Bias)])
         return net
 
     def connect_blocks(self, net):
@@ -218,14 +218,9 @@ class Network:
         return net
 
     def add_input_spikes(self, spike_list):
-        input_layer = self.layers[0]
         for spike_generator, spikes in zip(self.spike_gen_processes, spike_list):
             spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=spikes)
 
-    def compile_net(self, net):
-        print("{} Compiling now...".format(datetime.datetime.now()))
-        return nx.N2Compiler().compile(net) # return board
-        
     def add_snips(self, board):
         snip_dir = os.getcwd() + "/quartz/snips"
         

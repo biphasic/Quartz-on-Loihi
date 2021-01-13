@@ -11,19 +11,18 @@ import torch.nn as nn
 class TestLayers(unittest.TestCase):
     @parameterized.expand([
         ((1,1,10,10,), 10),
-        ((50,1,120,1,), 84),
+        ((50,1,120,1,), 10),
         ((500,1,84,1,), 10),
     ])
     def test_fc(self, dim_input, dim_output):
         t_max = 2**8
         np.random.seed(seed=35)
-        weights = (np.random.rand(dim_output,np.product(dim_input[1:])) - 0.5) / 5
-        biases = np.zeros((dim_output)) # (np.random.rand(dim_output) - 0.5) / 2 # 
+        weights = (np.random.rand(dim_output,np.product(dim_input[1:])) - 0.5) / 3
+        biases = (np.random.rand(dim_output) - 0.5) / 2 # np.zeros((dim_output)) # 
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input[1:]),
             layers.Dense(weights=weights, biases=biases),
-            layers.MonitorLayer(),
         ])
         values = np.random.rand(*dim_input) / 3
         weight_acc = loihi_model.layers[1].weight_acc
@@ -62,7 +61,6 @@ class TestLayers(unittest.TestCase):
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights, biases=biases, padding=padding, groups=groups),
-            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(*input_dims) / 2
@@ -106,7 +104,6 @@ class TestLayers(unittest.TestCase):
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims[1:]),
             layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
-            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(*input_dims)

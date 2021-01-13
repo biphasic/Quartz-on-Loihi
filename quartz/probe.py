@@ -3,7 +3,7 @@ import numpy as np
 import quartz
 import ipdb
 from nxsdk.utils.plotutils import plotProbes
-from quartz.utils import decode_spike_timings
+from quartz.utils import extract_spike_timings, decode_spike_timings
 
 
 def probe(target):
@@ -42,10 +42,14 @@ class LayerProbe(Probe):
         super(LayerProbe, self).__init__(target)
 
     def output(self):
-        #ipdb.set_trace()
         probes = [probe.probes[0] for probe in self.loihi_probe]
         names = self.target.names()
-        return decode_spike_timings(dict(zip(names, probes)), self.t_max)
+        names = [name for name in names if not 'bias' in name]
+        spike_times = extract_spike_timings(dict(zip(names, probes)))
+        trigger = [value for key, value in spike_times.items() if 'trigger' in key][0]
+        outputs = [value for key, value in sorted(spike_times.items()) if 'relco' in key]
+        decodings = [(trigger+1-output)/self.t_max for output in outputs]
+        return np.array(decodings)
     
         
 class BlockProbe(Probe):

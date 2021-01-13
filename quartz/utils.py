@@ -5,6 +5,14 @@ import collections
 import cProfile, pstats, io
 
 
+def extract_spike_timings(probe_dict):
+    spike_times = {}
+    for index, (name, graphs) in enumerate(probe_dict.items()):
+        spike_times_binary = np.array(graphs.data)
+        spike_time_indices = np.where(spike_times_binary == 1)[0]
+        if len(spike_time_indices) > 0: spike_times[name] = spike_time_indices
+    return spike_times
+
 def decode_spike_timings(probe_dict, t_max, t_min=1):
     values = {}
     spike_times = {}
