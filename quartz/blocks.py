@@ -111,6 +111,9 @@ class Block:
         mask = np.full(weights.shape, False)
         mask[weights!=0] = True
         return weights, delays, exponents, mask
+    
+    def __repr__(self):
+        return self.name
 
 
 class Input(Block):
