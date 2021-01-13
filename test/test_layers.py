@@ -18,14 +18,14 @@ class TestLayers(unittest.TestCase):
         t_max = 2**8
         np.random.seed(seed=35)
         weights = (np.random.rand(dim_output,np.product(dim_input[1:])) - 0.5) / 5
-        biases = (np.random.rand(dim_output) - 0.5) / 2 # np.zeros((dim_output)) #
+        biases = np.zeros((dim_output)) # (np.random.rand(dim_output) - 0.5) / 2 # 
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input[1:]),
             layers.Dense(weights=weights, biases=biases),
             layers.MonitorLayer(),
         ])
-        values = np.random.rand(*dim_input)
+        values = np.random.rand(*dim_input) / 3
         weight_acc = loihi_model.layers[1].weight_acc
         quantized_values = (values*t_max).round()/t_max
         quantized_weights = (weight_acc*weights).round()/weight_acc

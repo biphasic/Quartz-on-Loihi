@@ -30,7 +30,7 @@ class Network:
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None: steps_per_image = int(len(self.layers)*1.1*self.t_max)
+        if steps_per_image == None: steps_per_image = int((len(self.layers)-0.3)*self.t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
         self.data = []
@@ -57,7 +57,7 @@ class Network:
             if isinstance(last_layer, quartz.layers.Dense):
                 if last_layer.rectifying: # False: # 
                     output_array = output_array.reshape(last_layer.output_dims, batch_size).T
-            else: # if isinstance(last_layer, quartz.layers.Conv2D):
+            else:
                 output_array = output_array.reshape(*last_layer.output_dims, batch_size)
                 output_array = np.transpose(output_array, (3,0,1,2))
             return output_array
@@ -173,10 +173,7 @@ class Network:
                 pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
                 pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
                 for neuron in block.neurons:
-                    if neuron.loihi_type == Neuron.acc:
-                        loihi_neuron = net.createCompartment(acc_proto)
-                    else:
-                        loihi_neuron = net.createCompartment(pulse_proto)
+                    loihi_neuron = net.createCompartment(acc_proto) if neuron.loihi_type == Neuron.acc else net.createCompartment(pulse_proto)
                     neuron.loihi_neuron = loihi_neuron
                     block_group.addCompartments(loihi_neuron)
                     if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))

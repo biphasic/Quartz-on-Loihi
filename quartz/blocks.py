@@ -192,30 +192,3 @@ class Trigger(Block):
             trigger_neuron = Neuron(name=self.name + "trigger" + str(t), type=Neuron.output, parent=self)
             self.neurons += [trigger_neuron]
             self.output_neurons += [trigger_neuron]
-
-
-class Output(Block):
-    def __init__(self, name="output:", type=Block.output, **kwargs):
-        super(Output, self).__init__(name=name, type=type, **kwargs)
-        calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
-        guard = Neuron(name=name + "guard", parent=self)
-        guard2 = Neuron(name=name + "guard2", parent=self)
-        sync = Neuron(name=name + "sync", type=Neuron.input, parent=self)
-        delay = Neuron(name=name + "delay", loihi_type=Neuron.acc, parent=self)
-        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
-        second = Neuron(name=name + "2nd", loihi_type=Neuron.acc, type=Neuron.output, parent=self)
-        self.neurons = [calc, sync, guard, guard2, delay, first, second]
-
-        weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        sync.connect_to(calc, weight_acc)
-        sync.connect_to(delay, weight_acc)
-        delay.connect_to(second, weight_acc)
-        delay.connect_to(delay, -weight_acc)
-        calc.connect_to(guard, weight_e)
-        calc.connect_to(calc, -weight_acc)
-        guard.connect_to(guard2, weight_e)
-        guard.connect_to(guard, -3.1*weight_e)
-        guard2.connect_to(first, weight_e)
-        guard2.connect_to(guard2, -3.1*weight_e)
-        first.connect_to(first, -3.1*weight_e)
-        second.connect_to(second, -weight_acc)

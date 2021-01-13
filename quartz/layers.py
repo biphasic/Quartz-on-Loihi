@@ -132,7 +132,7 @@ class Dense(Layer):
                 bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)
                 self.blocks += [bias]
             # negative sum of quantized weights to balance first spikes and bias
-            bias_balance = (bias_sign - 1) if biases is not None else 1
+            bias_balance = -(bias_sign - 1) if biases is not None else 1
             weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance
             for _ in range(int(abs(weight_sum))):
                 trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
@@ -325,7 +325,7 @@ class MonitorLayer(Layer):
         self.output_dims = prev_layer.output_dims
         prev_trigger = prev_layer.trigger_blocks()[0]
         trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        trigger_delay = 1 #if isinstance(prev_layer, quartz.layers.InputLayer) else 1
+        trigger_delay = self.t_min
         prev_trigger.rectifier_neurons[0].connect_to(trigger_block.output_neurons[0], self.weight_e, trigger_delay)
         self.blocks += [trigger_block]
 
@@ -334,5 +334,5 @@ class MonitorLayer(Layer):
             output_neuron = Neuron(name=block.name + "monitor-{0:3.0f}".format(i), type=Block.output, monitor=self.monitor, parent=monitor)
             monitor.neurons += [output_neuron]
             self.blocks += [monitor]
-            block.first().connect_to(output_neuron, self.weight_e, 0)
+            block.first().connect_to(output_neuron, self.weight_e)
             trigger_block.output_neurons[0].connect_to(output_neuron, self.weight_e)
