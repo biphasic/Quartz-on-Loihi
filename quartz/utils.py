@@ -54,6 +54,12 @@ def decode_values_into_spike_input(samples, t_max, steps_per_sample, t_min=1, st
         start_time += steps_per_sample
     return inputs
 
+def quantize_values(weights, biases, inputs, weight_acc, t_max):
+    quantized_inputs = (inputs*t_max).round()/t_max
+    quantized_weights = (weight_acc*weights).round()/weight_acc
+    quantized_biases = (biases*t_max).round()/t_max
+    return quantized_weights, quantized_biases, quantized_inputs
+    
 def profile(fnc):
     """A decorator that uses cProfile to profile a function"""
     def inner(*args, **kwargs):

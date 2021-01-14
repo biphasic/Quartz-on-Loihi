@@ -50,7 +50,7 @@ class TestMultiLayer(unittest.TestCase):
         combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(combinations)
         for (out, ideal) in combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)#, delta=0.05)
+            if 0 < ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)#, delta=0.05)
 
 
     @parameterized.expand([
