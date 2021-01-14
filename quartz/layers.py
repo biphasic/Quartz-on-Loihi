@@ -89,7 +89,7 @@ class InputLayer(Layer):
 
 
 class Dense(Layer):
-    def __init__(self, weights, biases, rectifying=True, name="dense:", **kwargs):
+    def __init__(self, weights, biases=None, rectifying=True, name="dense:", **kwargs):
         super(Dense, self).__init__(name=name, **kwargs)
         self.weights = weights.copy()
         self.biases = biases
@@ -139,7 +139,7 @@ class Dense(Layer):
 
 
 class Conv2D(Layer):
-    def __init__(self, weights, biases, stride=(1,1), padding=(0,0), groups=1, name="conv2D:", monitor=False, **kwargs):
+    def __init__(self, weights, biases=None, stride=(1,1), padding=(0,0), groups=1, name="conv2D:", monitor=False, **kwargs):
         super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights.copy()
         self.biases = biases
@@ -216,94 +216,43 @@ class Conv2D(Layer):
                     trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*self.weight_acc, delay)
 
 
-
-class ConvPool2D(Layer):
-    def __init__(self, weights, biases, pool_kernel_size, pool_stride=None, conv_stride=1, name="convpool:", **kwargs):
-        super(ConvPool2D, self).__init__(name=name, **kwargs)
-        self.weights = weights
-        self.biases = biases
-        self.pool_kernel_size = pool_kernel_size
-        self.pool_stride = pool_stride
-        self.conv_stride = conv_stride
+class MaxPool2D(Layer):
+    def __init__(self, kernel_size, stride=None, name="maxpool:", **kwargs):
+        super(MaxPool2D, self).__init__(name=name, **kwargs)
+        self.kernel_size = kernel_size
+        self.stride = stride
 
     def connect_from(self, prev_layer):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
-        weights, biases = self.weights, self.biases
-        weights = (weights*self.weight_acc).round()/self.weight_acc
-        assert self.weights.shape[1] == prev_layer.output_dims[0]
-        if self.biases is not None: assert self.weights.shape[0] == self.biases.shape[0]
-        n_inputs = np.product(self.weights.shape[1:])
-        output_channels, input_channels, *conv_kernel_size = self.weights.shape
-        side_lengths = (int((prev_layer.output_dims[1] - conv_kernel_size[0]) / self.conv_stride + 1),\
-                        int((prev_layer.output_dims[2] - conv_kernel_size[1]) / self.conv_stride + 1))
-        prev_trigger = prev_layer.trigger_blocks()[0]
-        trigger_delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 2
-        trigger_block = quartz.blocks.Trigger(n_channels=output_channels, name=self.name+"trigger:", parent_layer=self)
-        for i in range(output_channels):
-            prev_trigger.output_neurons[0].connect_to(trigger_block.output_neurons[i], self.weight_acc, trigger_delay)
-        self.blocks += [trigger_block]
+        self.output_dims = list(prev_layer.output_dims)
+        output_channels = self.output_dims[0]
+        if self.stride==None: self.stride = self.kernel_size[0]
+        self.output_dims[1] = int(self.output_dims[1]/self.kernel_size[0])
+        self.output_dims[2] = int(self.output_dims[2]/self.kernel_size[1])
         
-        edge_case = 0
-        conv_neurons = []
-        input_blocks = prev_layer.output_blocks()
-        indices = np.arange(len(input_blocks)).reshape(*prev_layer.output_dims)
-        input_blocks = np.array(input_blocks)
+        trigger_block = quartz.blocks.WTA(name=self.name+"trigger:", type=Block.trigger, parent_layer=self)
+        self.blocks += [trigger_block]
+        prev_trigger = prev_layer.trigger_blocks()[0]
+        prev_trigger.rectifier_neurons[0].connect_to(trigger_block.input_neurons[0], self.weight_e)
+        
+        input_blocks = np.array(prev_layer.output_blocks())
+        indices = np.arange(len(input_blocks)).reshape(prev_layer.output_dims)
         for output_channel in range(output_channels): # no of output channels is most outer loop
-            patches = [image.extract_patches_2d(indices[input_channel,:,:], (conv_kernel_size)) for input_channel in range(input_channels)]
-            patches = np.stack(patches)
-            assert np.product(side_lengths) == patches.shape[1]
-            if self.biases is not None:
-                bias = quartz.blocks.Bias(value=self.biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
-                                                   type=Block.hidden, parent_layer=self)
-                splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
-                                                  type=Block.hidden, parent_layer=self)
-                bias.output_neurons[0].connect_to(splitter.input_neurons[0], self.weight_e)
-                prev_trigger.output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, trigger_delay) # trigger biases not just from one block
-                self.blocks += [bias, splitter]
-            for i in range(np.product(side_lengths)): # loop through all units in the output channel
-                calc_neuron = Neuron(name=self.name + "calc-n{0:3.0f}".format(i), loihi_type=Neuron.acc)
-                conv_neurons += [calc_neuron]
-                for input_channel in range(input_channels):
-                    block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
-                    patch_weights = self.weights[output_channel,input_channel,:,:].ravel()
-                    assert len(block_patch) == len(patch_weights)
-                    for j, block in enumerate(block_patch):
-                        weight = patch_weights[j]
-                        delay = 0 # 4 if weight > 0 else 0
-                        block.first().connect_to(calc_neuron, weight*self.weight_acc, delay+self.t_min)
-                weight_sum = -np.sum(weights[output_channel,:,:,:]) + 1
-                
-                if abs(int(weight_sum)) % 2 == 0: edge_case+= abs(int(weight_sum))
-                
-                for _ in range(int(abs(weight_sum))):
-                    trigger_block.output_neurons[output_channel].connect_to(calc_neuron, np.sign(weight_sum)*self.weight_acc, delay)
-                weight_rest = weight_sum - int(weight_sum)
-                trigger_block.output_neurons[output_channel].connect_to(calc_neuron, weight_rest*self.weight_acc, delay)
-                if self.biases is not None:
-                    bias_sign = np.sign(self.biases[output_channel])
-                    splitter.first().connect_to(calc_neuron, bias_sign*self.weight_acc, self.t_min)
-                    splitter.second().connect_to(calc_neuron, -bias_sign*self.weight_acc)
-        print("conv pool edge cases: {}".format(edge_case))
-
-        self.output_dims = [output_channels, *side_lengths]
-        if self.pool_stride==None: self.pool_stride = self.pool_kernel_size[0]
-        self.output_dims[1] = int(self.output_dims[1]/self.pool_kernel_size[0])
-        self.output_dims[2] = int(self.output_dims[2]/self.pool_kernel_size[1])
-        indices = np.arange(len(conv_neurons)).reshape(output_channels, *side_lengths)
-        conv_neurons = np.array(conv_neurons)
-        for output_channel in range(output_channels): # no of output channels is most outer loop
-            patches = image.extract_patches_2d(indices[output_channel,:,:], (self.pool_kernel_size)) # extract patches with stride 1
+            patches = image.extract_patches_2d(indices[output_channel,:,:], (self.kernel_size)) # extract patches with stride 1
             patches = np.stack(patches)
             patches_side_length = int(np.sqrt(patches.shape[0]))
-            patches = patches.reshape(patches_side_length, patches_side_length, *self.pool_kernel_size, -1) # align patches as a rectangle
-            # pick only patches that are interesting (stride)
-            patches = patches[::self.pool_stride,::self.pool_stride,:,:,:].reshape(-1, *self.pool_kernel_size, patches.shape[-1]) 
+            patches = patches.reshape(patches_side_length, patches_side_length, *self.kernel_size, -1) # align patches as a rectangle
+            # stride patches
+            patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *self.kernel_size, patches.shape[-1]) 
             for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
-                neuron_patch = conv_neurons[patches[i,:,:,:].ravel()]
-                maxpool = quartz.blocks.ConvMax(list(neuron_patch), name=self.name+"convmax-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i),
+                block_patch = input_blocks[patches[i,:,:,:].ravel()]
+                maxpool = quartz.blocks.WTA(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i),
                                                 type=Block.output, parent_layer=self)
-                trigger_block.rectifier_neurons[0].connect_to(maxpool.neuron("1st"), self.weight_e, delay)
+                for block in block_patch:
+                    for neuron in block.output_neurons:
+                        neuron.connect_to(maxpool.input_neurons[0], self.weight_e)
+                        maxpool.input_neurons[0].connect_to(neuron, -self.weight_acc)
                 self.blocks += [maxpool]
 

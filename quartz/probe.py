@@ -47,7 +47,7 @@ class LayerProbe(Probe):
         names = [name for name in names if not 'bias' in name]
         spike_times = extract_spike_timings(dict(zip(names, probes)))
         trigger = [value for key, value in spike_times.items() if 'trigger' in key][0]
-        outputs = [value for key, value in sorted(spike_times.items()) if 'relco' in key]
+        outputs = [value for key, value in sorted(spike_times.items()) if 'relco' in key or 'wta' in key]
         decodings = [(trigger+1-output)/self.t_max for output in outputs]
         return np.array(decodings)
     

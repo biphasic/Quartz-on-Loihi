@@ -155,7 +155,7 @@ class Bias(Block):
         self.layout = True
 
 
-class ReLCo(Block):
+class ReLCo(Block): # Rectifying Linear Combination
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
         calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
@@ -166,24 +166,19 @@ class ReLCo(Block):
         calc.connect_to(calc, -2**6*weight_acc)
 
         
-class ConvMax(Block):
-    def __init__(self, conv_neurons, name="convmax:", type=Block.output, **kwargs):
-        super(ConvMax, self).__init__(name=name, type=type, **kwargs)
-        first = Neuron(name=name + "1st", type=Neuron.output, parent=self)
+class WTA(Block):
+    def __init__(self, name="maxpool:", type=Block.output, **kwargs):
+        super(WTA, self).__init__(name=name, type=type, **kwargs)
+        first = Neuron(name=name + "1st", loihi_type=Neuron.pulse, type=Neuron.output, parent=self)
         self.neurons = [first]
-        self.neurons += conv_neurons
+        self.input_neurons += [first]
         self.output_neurons += [first]
-
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         first.connect_to(first, -8.1*weight_e)
-        for neuron in conv_neurons:
-            first.connect_to(neuron, -weight_acc) # as an alternative to negative loop from neuron to neuron, this saves some spikes
-            neuron.connect_to(first, weight_e)
-            neuron.parent_block = self
 
 
 class Trigger(Block):
-    def __init__(self, n_channels, name="pool:", type=Block.trigger, **kwargs):
+    def __init__(self, n_channels, name="trigger:", type=Block.trigger, **kwargs):
         super(Trigger, self).__init__(name=name, type=type, **kwargs)
         rect = Neuron(name=name + "rect", loihi_type=Neuron.acc, type=Neuron.rectifier, parent=self)
         self.neurons = [rect]
