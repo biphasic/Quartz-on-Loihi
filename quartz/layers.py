@@ -164,7 +164,6 @@ class Conv2D(Layer):
                         int((prev_layer.output_dims[2] - kernel_size[1] + 2*self.padding[1]) / self.stride[1] + 1))
         self.output_dims = (output_channels, *side_lengths)
 
-        edge_case = 0
         input_blocks = np.pad(np.array(input_blocks).reshape(*prev_layer.output_dims), 
                               ((0,0), self.padding, self.padding), 'constant', constant_values=(0))
         indices = np.arange(len(input_blocks.ravel())).reshape(input_blocks.shape)
@@ -172,29 +171,32 @@ class Conv2D(Layer):
         n_groups_out = output_channels//self.groups
         n_groups_in = input_channels//self.groups
         prev_trigger = prev_layer.trigger_blocks()[0]
-        trigger_delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 2
+        trigger_delay = 0 #if isinstance(prev_layer, quartz.layers.InputLayer) else 2
         trigger_block = quartz.blocks.Trigger(n_channels=output_channels, name=self.name+"trigger:", parent_layer=self)
         for i in range(output_channels):
             prev_trigger.rectifier_neurons[0].connect_to(trigger_block.output_neurons[i], self.weight_e, trigger_delay)
+        prev_trigger.rectifier_neurons[0].connect_to(trigger_block.rectifier_neurons[0], self.weight_acc, trigger_delay)
         self.blocks += [trigger_block]
         for g in range(self.groups): # split feature maps into groups
             for output_channel in range(g*n_groups_out,(g+1)*n_groups_out): # loop over output channels in one group
                 patches = [image.extract_patches_2d(indices[input_channel,:,:], (kernel_size)) for input_channel in range(input_channels)]
                 patches = np.stack(patches)
                 assert np.product(side_lengths) == patches.shape[1]
-                if biases is not None:
-                    bias = quartz.blocks.Bias(value=biases[output_channel], name=self.name+"const-n{0:2.0f}:".format(output_channel), 
+                if biases is not None: # create bias for output channel
+                    bias = quartz.blocks.Bias(value=biases[output_channel], name=self.name+"bias-n{0:2.0f}:".format(output_channel), 
                                                        type=Block.hidden, monitor=False, parent_layer=self)
-                    splitter = quartz.blocks.Splitter(name=self.name+"split-bias-n{0:2.0f}:".format(output_channel), 
-                                                      type=Block.hidden, monitor=False, parent_layer=self)
-                    bias.output_neurons[0].connect_to(splitter.input_neurons[0], self.weight_e)
-                    prev_trigger.output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, trigger_delay) 
-                    self.blocks += [bias, splitter]
+                    trigger_index = 1 if isinstance(prev_layer, quartz.layers.InputLayer) else 0
+                    prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e)
+                    self.blocks += [bias]
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
                     self.blocks += [relco]
+                    if biases is not None:
+                        bias_sign = np.sign(biases[output_channel])
+                        if bias_sign == 0: bias_sign = 1  # make it positive in case biases[i] == 0
+                        bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)                   
                     weight_sum = 0
-                    delay = 0 # 4 if weight > 0 else 0
+                    delay = 0
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
@@ -203,21 +205,16 @@ class Conv2D(Layer):
                             if block != 0: # no connection when trying to connect to padding block
                                 weight = patch_weights[j]
                                 weight_sum += weight
-                                block.output_neurons[0].connect_to(relco.input_neurons[0], weight*self.weight_acc, delay+self.t_min)
-                    weight_sum = -weight_sum + 1
+                                block.output_neurons[0].connect_to(relco.input_neurons[0], weight*self.weight_acc, delay)
+                    bias_balance = -(bias_sign - 1) if biases is not None else 1
+                    weight_sum = -weight_sum + bias_balance
                     
-                    if abs(int(weight_sum)) % 2 == 0: edge_case+= abs(int(weight_sum))
-                        
                     for _ in range(int(abs(weight_sum))):
                         trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], np.sign(weight_sum)*self.weight_acc, delay)
                     weight_rest = weight_sum - int(weight_sum)
                     trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], weight_rest*self.weight_acc, delay)
-                    trigger_block.rectifier_neurons[0].connect_to(relco.output_neurons[0], self.weight_e, delay)
-                    if biases is not None:
-                        bias_sign = np.sign(biases[output_channel])
-                        splitter.first().connect_to(relco.input_neurons[0], bias_sign*self.weight_acc, self.t_min)
-                        splitter.second().connect_to(relco.input_neurons[0], -bias_sign*self.weight_acc)
-        print("conv edge cases: {}".format(edge_case))
+                    trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*self.weight_acc, delay)
+
 
 
 class ConvPool2D(Layer):

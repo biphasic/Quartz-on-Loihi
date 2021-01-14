@@ -25,7 +25,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.InputLayer(dims=input_dims[1:]),
             layers.Dense(weights=weights1, biases=biases1),
             layers.Dense(weights=weights2, biases=biases2),
-            layers.MonitorLayer(),
         ])
         
         values = np.random.rand(*input_dims) / 2
@@ -74,7 +73,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights1, biases=biases1),
             layers.Conv2D(weights=weights2, biases=biases2),
-            layers.MonitorLayer(),
         ])
         
         values = np.random.rand(*input_dims) / 2
@@ -120,7 +118,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights1, biases=biases1),
             layers.Dense(weights=weights2, biases=biases2),
-            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(*input_dims) / 3
@@ -167,7 +164,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.InputLayer(dims=input_dims[1:]),
             layers.ConvPool2D(weights=weights1, biases=biases1, pool_kernel_size=pooling_kernel_size),
             layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
-            layers.MonitorLayer(),
         ])
         values = np.random.rand(*input_dims) / 3
         quantized_values = (values*t_max).round()/t_max
@@ -217,7 +213,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.InputLayer(dims=input_dims[1:]),
             layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
             layers.Conv2D(weights=weights2, biases=biases2),
-            layers.MonitorLayer(),
         ])
 
         values = np.random.rand(*input_dims) / 2
@@ -261,7 +256,6 @@ class TestMultiLayer(unittest.TestCase):
             layers.ConvPool2D(weights=weights1, biases=biases1, pool_kernel_size=pooling_kernel_size),
             layers.ConvPool2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
             layers.Conv2D(weights=weights3, biases=biases3),
-            layers.MonitorLayer(),
         ])
         values = np.random.rand(*input_dims) / 3
         quantized_values = (values*t_max).round()/t_max
