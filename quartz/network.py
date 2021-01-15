@@ -124,7 +124,7 @@ class Network:
         n_incoming_axons_per_core = 4096
         n_outgoing_axons_per_core = 4096
         core_id = 0
-        for i, layer in enumerate(self.layers):
+        for i, layer in enumerate(self.layers[1:]):
 #             comps = layer.n_compartments()
 #             comp_limit = comps / n_compartments_per_core
 #             if i == 0:
@@ -136,14 +136,15 @@ class Network:
 #             conn_out_limit = conns_out / n_outgoing_axons_per_core
 #             n_cores = max(comp_limit, conn_in_limit, conn_out_limit)
 #             max_comps_per_core = comps / n_cores
-            if i == 0:
-                max_comps_per_core = 400
-            elif i == 1:
-                max_comps_per_core = 256
-            elif i == 2:
-                max_comps_per_core = 256
-            else:
-                max_comps_per_core = 256
+#             if i == 0:
+#                 max_comps_per_core = 100
+#             elif i == 1:
+#                 max_comps_per_core = 100
+#             elif i == 2:
+#                 max_comps_per_core = 100
+#             else:
+#                 max_comps_per_core = 256
+            max_comps_per_core = 256
             for block in layer.blocks:
                 if core_id >= 127: 
                     print(self.core_ids)

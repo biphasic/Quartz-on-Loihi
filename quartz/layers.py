@@ -251,6 +251,6 @@ class MaxPool2D(Layer):
                 for block in block_patch:
                     for neuron in block.output_neurons:
                         neuron.connect_to(maxpool.input_neurons[0], self.weight_e)
-                        maxpool.input_neurons[0].connect_to(neuron, -self.weight_acc)
+                        maxpool.input_neurons[0].connect_to(neuron, -64*255)
                 self.blocks += [maxpool]
 

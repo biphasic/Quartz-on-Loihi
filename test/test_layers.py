@@ -81,9 +81,35 @@ class TestLayers(unittest.TestCase):
     @parameterized.expand([
         ((1,1,8,8), (3,1,3,3)),
         ((50,3,6,6), (6,3,5,5)),
-        ((100,2,4,4), (4,2,3,3)),
     ])
     def test_maxpool2d(self, input_dims, weight_dims):
+        t_max = 2**8
+        kernel_size = [2,2]
+        np.random.seed(seed=27)
+        inputs = np.random.rand(*input_dims) / 2
+
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=input_dims[1:]),
+            layers.MaxPool2D(kernel_size=kernel_size)
+        ])
+        loihi_output = loihi_model(inputs, t_max)
+
+        model = nn.MaxPool2d(kernel_size=kernel_size)
+        model_output = model(torch.tensor((inputs*t_max).round()/t_max)).detach().numpy()
+        
+        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
+        #print(output_combinations)
+        for (out, ideal) in output_combinations:
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+
+
+    @parameterized.expand([
+        ((1,1,8,8), (3,1,3,3)),
+        ((50,3,6,6), (6,3,5,5)),
+        ((100,2,4,4), (4,2,3,3)),
+    ])
+    def test_convpool2d(self, input_dims, weight_dims):
         t_max = 2**8
         kernel_size = [2,2]
 
@@ -97,9 +123,6 @@ class TestLayers(unittest.TestCase):
             layers.Conv2D(weights=weights),
             layers.MaxPool2D(kernel_size=kernel_size)
         ])
-
-        relcos = [quartz.probe(block) for block in loihi_model.layers[1].blocks]
-        wtas = [quartz.probe(block) for block in loihi_model.layers[2].blocks]
 
         q_weights, q_biases, q_inputs = quartz.utils.quantize_values(weights, biases, inputs, loihi_model.layers[1].weight_acc, t_max)
         model = nn.Sequential(
