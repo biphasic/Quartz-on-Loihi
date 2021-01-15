@@ -93,21 +93,22 @@ class Block:
         exponents = np.zeros_like(weights)
         
         c = 0
+        factors = [64, 32, 16, 8, 4, 2]
+        factor_exponents = [6, 5, 4, 3, 2, 1]
         for pre, post, weight, delay in relevant_synapses:
             i = pre_index_list[pre]
             j = post_index_list[post]
-            exponent = np.log2(abs(weight)/block.parent_layer.weight_acc)
             if weights[c,j,i] != 0: c+=1
-            if exponent > 0 & isinstance(exponent, int):
-                weights[c,j,i] = weight / 2**exponent
-                exponents[c,j,i] = exponent
-            elif exponent <= 1:
-                weights[c,j,i] = weight
-                exponents[c,j,i] = 0
-            else:
-                ipdb.set_trace()
             delays[c,j,i] = delay
-            
+            weights[c,j,i] = weight
+            exponents[c,j,i] = 0
+            for e, factor in enumerate(factors):
+                if (weight / factor).is_integer() & (-256 < (weight / factor) < 256):
+                    weights[c,j,i] = weight / factor
+                    exponents[c,j,i] = factor_exponents[e]
+                    #ipdb.set_trace()
+                    break
+
         mask = np.full(weights.shape, False)
         mask[weights!=0] = True
         return weights, delays, exponents, mask
@@ -163,7 +164,7 @@ class ReLCo(Block): # Rectifying Linear Combination
         self.input_neurons += [calc]
         self.output_neurons += [calc]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
-        calc.connect_to(calc, -2**6*weight_acc)
+        calc.connect_to(calc, -2**6*255)
 
         
 class WTA(Block):

@@ -113,7 +113,7 @@ class Dense(Layer):
                                             monitor=self.monitor, parent_layer=self)
             for j, block in enumerate(input_blocks):
                 weight = weights[i,j]
-                delay = 0
+                delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
                 block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay)
             self.blocks += [relco]
             if biases is not None:
@@ -129,11 +129,11 @@ class Dense(Layer):
             bias_balance = -(bias_sign - 1) if biases is not None else 1
             weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance
             for _ in range(int(abs(weight_sum))):
-                trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, delay)
+                trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, trigger_delay)
             weight_rest = weight_sum - int(weight_sum)
-            trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, delay)
+            trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, trigger_delay)
             if self.rectifying:
-                trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*self.weight_acc, delay)
+                trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*251, trigger_delay)
 
 
 class Conv2D(Layer):
