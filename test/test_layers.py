@@ -81,39 +81,36 @@ class TestLayers(unittest.TestCase):
     @parameterized.expand([
         ((1,1,8,8), (3,1,3,3)),
         ((50,3,6,6), (6,3,5,5)),
-        ((500,2,4,4), (4,2,3,3)),
+        ((100,2,4,4), (4,2,3,3)),
     ])
-    def test_convpool2d(self, input_dims, weight_dims):
+    def test_maxpool2d(self, input_dims, weight_dims):
         t_max = 2**8
-        conv_kernel_size = weight_dims[2:]
-        pooling_kernel_size = [2,2]
-        pooling_stride = 2
+        kernel_size = [2,2]
 
-        np.random.seed(seed=46)
-        np.set_printoptions(suppress=True)
-        weights = (np.random.rand(*weight_dims)-0.5) / 4 # np.zeros(weight_dims) #
-        biases = (np.random.rand(weight_dims[0])-0.5) / 2 # np.zeros(weight_dims[0]) #
+        np.random.seed(seed=27)
+        weights = (np.random.rand(*weight_dims)-0.5) / 4 # 
+        biases = np.zeros((weight_dims[0])) 
+        inputs = np.random.rand(*input_dims) / 2 # np.ones((input_dims)) / 2 #
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims[1:]),
-            layers.ConvPool2D(weights=weights, biases=biases, pool_kernel_size=pooling_kernel_size),
+            layers.Conv2D(weights=weights),
+            layers.MaxPool2D(kernel_size=kernel_size)
         ])
 
-        values = np.random.rand(*input_dims)
-        quantized_values = (values*t_max).round()/t_max
-        weight_acc = loihi_model.layers[1].weight_acc
-        quantized_weights = (weight_acc*weights).round()/weight_acc
-        quantized_biases = (biases*t_max).round()/t_max
+        relcos = [quartz.probe(block) for block in loihi_model.layers[1].blocks]
+        wtas = [quartz.probe(block) for block in loihi_model.layers[2].blocks]
 
+        q_weights, q_biases, q_inputs = quartz.utils.quantize_values(weights, biases, inputs, loihi_model.layers[1].weight_acc, t_max)
         model = nn.Sequential(
-            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=conv_kernel_size), nn.ReLU(),
-            nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
+            nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2]), nn.ReLU(),
+            nn.MaxPool2d(kernel_size=kernel_size),
         )
-        model[0].weight = nn.Parameter(torch.tensor(quantized_weights))
-        model[0].bias = nn.Parameter(torch.tensor(quantized_biases))
-        model_output = model(torch.tensor(quantized_values)).detach().numpy()
+        model[0].weight = torch.nn.Parameter(torch.tensor(q_weights))
+        model[0].bias = torch.nn.Parameter(torch.tensor((q_biases)))
+        model_output = model(torch.tensor(q_inputs)).detach().numpy()
         
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(inputs, t_max)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))

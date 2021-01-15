@@ -30,7 +30,9 @@ class Network:
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None: steps_per_image = int((len(self.layers)+0.9)*self.t_max)
+        if steps_per_image == None:
+            n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
+            steps_per_image = int((n_layers+0.9)*self.t_max)
         run_time = steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
         self.data = []

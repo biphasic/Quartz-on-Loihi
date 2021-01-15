@@ -41,17 +41,15 @@ class Layer:
         return sum([block.n_compartments() for block in self.blocks])
 
     def n_parameters(self):
-        if isinstance(self, quartz.layers.InputLayer): return 0
+        if isinstance(self, (quartz.layers.MaxPool2D, quartz.layers.InputLayer)): return 0
         n_params = np.product(self.weights.shape)
         if self.biases is not None: n_params += np.product(self.biases.shape)
         return n_params
     
     def n_spikes(self):
-        saved_spikes = 0
-        for block in self.blocks:
-            if isinstance(block, quartz.blocks.ConvMax):
-                saved_spikes += len(block.neurons) - 2
-        return self.n_compartments() - saved_spikes
+        if isinstance(self, quartz.layers.MaxPool2D):
+            return int(-1 * (np.product(self.kernel_size)-1) / np.product(self.kernel_size) * np.product(self.prev_layer.output_dims) + np.product(self.output_dims))
+        return self.n_compartments()
 
     def n_outgoing_connections(self):
         return sum([block.n_outgoing_connections() for block in self.blocks])

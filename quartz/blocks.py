@@ -173,6 +173,7 @@ class WTA(Block):
         self.neurons = [first]
         self.input_neurons += [first]
         self.output_neurons += [first]
+        self.rectifier_neurons += [first]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         first.connect_to(first, -8.1*weight_e)
 
