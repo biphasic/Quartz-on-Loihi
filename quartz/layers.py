@@ -194,7 +194,7 @@ class Conv2D(Layer):
                         if bias_sign == 0: bias_sign = 1  # make it positive in case biases[i] == 0
                         bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)                   
                     weight_sum = 0
-                    delay = 0
+                    delay =  0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
@@ -208,10 +208,10 @@ class Conv2D(Layer):
                     weight_sum = -weight_sum + bias_balance
                     
                     for _ in range(int(abs(weight_sum))):
-                        trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], np.sign(weight_sum)*self.weight_acc, delay)
+                        trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], np.sign(weight_sum)*self.weight_acc, trigger_delay)
                     weight_rest = weight_sum - int(weight_sum)
-                    trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], weight_rest*self.weight_acc, delay)
-                    trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*self.weight_acc, delay)
+                    trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], weight_rest*self.weight_acc, trigger_delay)
+                    trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*251, trigger_delay)
 
 
 class MaxPool2D(Layer):

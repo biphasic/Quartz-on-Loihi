@@ -100,15 +100,15 @@ class Block:
             j = post_index_list[post]
             if weights[c,j,i] != 0: c+=1
             delays[c,j,i] = delay
-            weights[c,j,i] = weight
-            exponents[c,j,i] = 0
-            for e, factor in enumerate(factors):
-                if (weight / factor).is_integer() & (-256 < (weight / factor) < 256):
-                    weights[c,j,i] = weight / factor
-                    exponents[c,j,i] = factor_exponents[e]
-                    #ipdb.set_trace()
-                    break
-
+            if abs(weight) > 255:
+                for e, factor in enumerate(factors):
+                    if (weight / factor).is_integer() & (-256 < (weight / factor) < 256):
+                        weights[c,j,i] = weight / factor
+                        exponents[c,j,i] = factor_exponents[e]
+                        break
+            else:
+                weights[c,j,i] = weight
+                exponents[c,j,i] = 0
         mask = np.full(weights.shape, False)
         mask[weights!=0] = True
         return weights, delays, exponents, mask
