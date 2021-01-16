@@ -116,7 +116,7 @@ class TestFunctionality(unittest.TestCase):
     @parameterized.expand([
         ([1,], [1,], [0,], 2**8),
         ([1,], [-1,], [0.5,], 2**7),
-        ([1,], [1,], [1,], 2**6),
+        ([1,], [1,], [0.75,], 2**7),
     ])
     def test_2layer_simple_input(self, weights1, weights2, values, t_max):
         dim_input = (1,1,1)
@@ -127,8 +127,8 @@ class TestFunctionality(unittest.TestCase):
         
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input),
-            layers.Dense(weights=weights1, biases=None, rectifying=True, weight_acc=128),
-            layers.Dense(weights=weights2, biases=None, rectifying=True, weight_acc=128),
+            layers.Dense(weights=weights1, biases=None, rectifying=True),# weight_acc=128),
+            layers.Dense(weights=weights2, biases=None, rectifying=True),# weight_acc=128),
         ])
         loihi_output = loihi_model(values, t_max)
         self.assertEqual(loihi_output, np.maximum(weights2*np.maximum(weights1*values, 0),0))

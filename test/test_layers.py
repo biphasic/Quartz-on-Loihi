@@ -83,7 +83,7 @@ class TestLayers(unittest.TestCase):
         ((50,3,6,6), (6,3,5,5)),
     ])
     def test_maxpool2d(self, input_dims, weight_dims):
-        t_max = 2**8
+        t_max = 2**7
         kernel_size = [2,2]
         np.random.seed(seed=27)
         inputs = np.random.rand(*input_dims) / 2
@@ -101,7 +101,7 @@ class TestLayers(unittest.TestCase):
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+            if ideal <= 1: self.assertEqual(out, ideal)
 
 
     @parameterized.expand([
@@ -139,4 +139,4 @@ class TestLayers(unittest.TestCase):
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)

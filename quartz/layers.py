@@ -70,7 +70,7 @@ class Layer:
     def __repr__(self):
         return self.name
 
-    
+
 class InputLayer(Layer):
     def __init__(self, dims, name="l0-input:", **kwargs):
         super(InputLayer, self).__init__(name=name, **kwargs)
@@ -119,7 +119,7 @@ class Dense(Layer):
             if biases is not None:
                 bias = quartz.blocks.Bias(value=biases[i], name=self.name+"bias-n{0:2.0f}:".format(i), 
                                                    type=Block.hidden, parent_layer=self)
-                trigger_index = 1 if isinstance(prev_layer, quartz.layers.InputLayer) else 0
+                trigger_index = 1 if isinstance(prev_layer, (quartz.layers.InputLayer, quartz.layers.MaxPool2D)) else 0
                 prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, 0)
                 bias_sign = np.sign(biases[i])
                 if bias_sign == 0: bias_sign = 1  # make it positive in case biases[i] == 0
@@ -183,7 +183,7 @@ class Conv2D(Layer):
                 if biases is not None: # create bias for output channel
                     bias = quartz.blocks.Bias(value=biases[output_channel], name=self.name+"bias-n{0:2.0f}:".format(output_channel), 
                                                        type=Block.hidden, monitor=False, parent_layer=self)
-                    trigger_index = 1 if isinstance(prev_layer, quartz.layers.InputLayer) else 0
+                    trigger_index = 1 if isinstance(prev_layer, (quartz.layers.InputLayer, quartz.layers.MaxPool2D)) else 0
                     prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e)
                     self.blocks += [bias]
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
@@ -205,8 +205,7 @@ class Conv2D(Layer):
                                 weight_sum += weight
                                 block.output_neurons[0].connect_to(relco.input_neurons[0], weight*self.weight_acc, delay)
                     bias_balance = -(bias_sign - 1) if biases is not None else 1
-                    weight_sum = -weight_sum + bias_balance
-                    
+                    weight_sum = -weight_sum + bias_balance                    
                     for _ in range(int(abs(weight_sum))):
                         trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], np.sign(weight_sum)*self.weight_acc, trigger_delay)
                     weight_rest = weight_sum - int(weight_sum)
@@ -231,9 +230,13 @@ class MaxPool2D(Layer):
         self.output_dims[2] = int(self.output_dims[2]/self.kernel_size[1])
         
         trigger_block = quartz.blocks.WTA(name=self.name+"trigger:", type=Block.trigger, parent_layer=self)
-        self.blocks += [trigger_block]
-        prev_trigger = prev_layer.trigger_blocks()[0]
-        prev_trigger.rectifier_neurons[0].connect_to(trigger_block.input_neurons[0], self.weight_e)
+        trigger_block_bias = quartz.blocks.WTA(name=self.name+"rectifier:", type=Block.trigger, parent_layer=self)
+        trigger_block.rectifier_neurons += [trigger_block.neurons[0]]
+        trigger_block_bias.output_neurons += [trigger_block_bias.neurons[0]]
+        self.blocks += [trigger_block, trigger_block_bias]
+        prev_layer.trigger_blocks()[0].rectifier_neurons[0].connect_to(trigger_block.input_neurons[0], self.weight_e)
+        trigger_index = 1 if isinstance(prev_layer, (quartz.layers.InputLayer, quartz.layers.MaxPool2D)) else 0
+        prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(trigger_block_bias.input_neurons[0], self.weight_e)
         
         input_blocks = np.array(prev_layer.output_blocks())
         indices = np.arange(len(input_blocks)).reshape(prev_layer.output_dims)
@@ -244,10 +247,11 @@ class MaxPool2D(Layer):
             patches = patches.reshape(patches_side_length, patches_side_length, *self.kernel_size, -1) # align patches as a rectangle
             # stride patches
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *self.kernel_size, patches.shape[-1]) 
-            for i in range(int(np.product(self.output_dims[1:3]))): # loop through all units in the output channel
+            for i in range(int(np.product(self.output_dims[1:]))): # loop through all units in the output channel
                 block_patch = input_blocks[patches[i,:,:,:].ravel()]
                 maxpool = quartz.blocks.WTA(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i),
                                                 type=Block.output, parent_layer=self)
+                maxpool.output_neurons += [maxpool.neurons[0]]
                 for block in block_patch:
                     for neuron in block.output_neurons:
                         neuron.connect_to(maxpool.input_neurons[0], self.weight_e)

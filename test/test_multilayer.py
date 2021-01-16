@@ -46,7 +46,7 @@ class TestMultiLayer(unittest.TestCase):
         combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(combinations)
         for (out, ideal) in combinations:
-            if 0 < ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)#, delta=0.05)
+            if 0 < ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05) # places=1
 
 
     @parameterized.expand([
@@ -92,6 +92,35 @@ class TestMultiLayer(unittest.TestCase):
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05)
             else: print("reduce weight or input value")
+
+
+    @parameterized.expand([
+        ((1,1,8,8),),
+    ])
+    def test_2maxpool2d(self, input_dims):
+        t_max = 2**7
+        kernel_size = [2,2]
+        np.random.seed(seed=27)
+        inputs = np.random.rand(*input_dims) / 2
+
+        loihi_model = quartz.Network([
+            layers.InputLayer(dims=input_dims[1:]),
+            layers.MaxPool2D(kernel_size=kernel_size),
+            layers.MaxPool2D(kernel_size=kernel_size),
+        ])
+        loihi_output = loihi_model(inputs, t_max)
+
+        model = nn.Sequential(
+            nn.MaxPool2d(kernel_size=kernel_size),
+            nn.MaxPool2d(kernel_size=kernel_size),
+        )
+        model_output = model(torch.tensor((inputs*t_max).round()/t_max)).detach().numpy()
+        
+        self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
+        output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
+        print(output_combinations)
+        for (out, ideal) in output_combinations:
+            if ideal <= 1: self.assertEqual(out, ideal)
 
 
     @parameterized.expand([
@@ -143,8 +172,8 @@ class TestMultiLayer(unittest.TestCase):
         pooling_stride = 2
         np.random.seed(seed=44)
         np.set_printoptions(suppress=True)
-        weights1 = (np.random.rand(*weight_dims)-0.5) / 5 # np.zeros(weight_dims) #
-        weights2 = (np.random.rand(*weight_dims2)-0.5) / 5 # np.zeros(weight_dims) #
+        weights1 = (np.random.rand(*weight_dims)-0.5) / 3 # np.zeros(weight_dims) #
+        weights2 = (np.random.rand(*weight_dims2)-0.5) / 3 # np.zeros(weight_dims) #
         biases1 = (np.random.rand(weight_dims[0])-0.5) / 3
         biases2 = (np.random.rand(weight_dims2[0])-0.5) / 3 
 
@@ -180,7 +209,7 @@ class TestMultiLayer(unittest.TestCase):
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.04)
 
 
     @parameterized.expand([
@@ -223,7 +252,7 @@ class TestMultiLayer(unittest.TestCase):
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         # print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05)
 
 
     @parameterized.expand([
@@ -243,9 +272,9 @@ class TestMultiLayer(unittest.TestCase):
 
         loihi_model = quartz.Network([
             layers.InputLayer(dims=input_dims[1:]),
-            layers.Conv2D(weights=weights1, biases=biases1, pool_kernel_size=pooling_kernel_size),
+            layers.Conv2D(weights=weights1, biases=biases1),
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
-            layers.Conv2D(weights=weights2, biases=biases2, pool_kernel_size=pooling_kernel_size),
+            layers.Conv2D(weights=weights2, biases=biases2),
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
             layers.Conv2D(weights=weights3, biases=biases3),
         ])
@@ -270,6 +299,6 @@ class TestMultiLayer(unittest.TestCase):
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
-        print(output_combinations)
+        #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.04)

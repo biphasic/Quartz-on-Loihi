@@ -130,8 +130,8 @@ class Bias(Block):
     def __init__(self, value, name="bias:", type=Block.hidden, **kwargs):
         self.value = abs(value)
         super(Bias, self).__init__(name=name, type=type, **kwargs)
-        input_ = Neuron(type=Neuron.input, name=self.name+"input", parent=self)
-        output = Neuron(type=Neuron.output, name=self.name+"output", parent=self)
+        input_ = Neuron(name=self.name+"input", parent=self)
+        output = Neuron(name=self.name+"output", parent=self)
         self.neurons = [input_, output]
         self.input_neurons += [input_]
         self.output_neurons += [output]
@@ -159,7 +159,7 @@ class Bias(Block):
 class ReLCo(Block): # Rectifying Linear Combination
     def __init__(self, name="relco:", type=Block.output, **kwargs):
         super(ReLCo, self).__init__(name=name, type=type, **kwargs)
-        calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, type=Neuron.input, parent=self)
+        calc = Neuron(name=name + "calc", loihi_type=Neuron.acc, parent=self)
         self.neurons = [calc]
         self.input_neurons += [calc]
         self.output_neurons += [calc]
@@ -170,11 +170,9 @@ class ReLCo(Block): # Rectifying Linear Combination
 class WTA(Block):
     def __init__(self, name="maxpool:", type=Block.output, **kwargs):
         super(WTA, self).__init__(name=name, type=type, **kwargs)
-        first = Neuron(name=name + "1st", loihi_type=Neuron.pulse, type=Neuron.output, parent=self)
+        first = Neuron(name=name + "1st", loihi_type=Neuron.pulse, parent=self)
         self.neurons = [first]
         self.input_neurons += [first]
-        self.output_neurons += [first]
-        self.rectifier_neurons += [first]
         weight_e, weight_acc, t_min, t_neu = self.get_params_at_once()
         first.connect_to(first, -8.1*weight_e)
 
