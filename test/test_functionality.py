@@ -123,12 +123,13 @@ class TestFunctionality(unittest.TestCase):
         dim_output = 1
         weights1 = np.array([weights1])
         weights2 = np.array([weights2])
+        bias = np.zeros(dim_output)
         values = np.array(values)
         
         loihi_model = quartz.Network([
             layers.InputLayer(dims=dim_input),
-            layers.Dense(weights=weights1, biases=None, rectifying=True),# weight_acc=128),
-            layers.Dense(weights=weights2, biases=None, rectifying=True),# weight_acc=128),
+            layers.Dense(weights=weights1, biases=bias, rectifying=True)
+            layers.Dense(weights=weights2, biases=bias, rectifying=True)
         ])
         loihi_output = loihi_model(values, t_max)
         self.assertEqual(loihi_output, np.maximum(weights2*np.maximum(weights1*values, 0),0))

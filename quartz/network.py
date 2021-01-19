@@ -17,7 +17,6 @@ from tqdm.auto import tqdm
 
 
 class Network:
-    # @profile # uncomment to profile model building
     def __init__(self, layers, name=''):
         self.name = name
         self.layers = layers
@@ -185,6 +184,7 @@ class Network:
                 layer.probe.set_loihi_probe([block.loihi_group.probe(layer_measurements)[0] for block in layer.blocks if not isinstance(block, quartz.blocks.Bias)])
         return net
 
+#     @profile # uncomment to profile model building
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
