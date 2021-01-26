@@ -1,4 +1,4 @@
-from quartz.components import Neuron
+from quartz.neuron import Neuron
 from quartz.blocks import Block
 import quartz
 from sklearn.feature_extraction import image
@@ -17,23 +17,13 @@ class Layer:
         self.monitor = monitor
         self.output_dims = []
         self.layer_n = None
-        self.prev_layer = None
         self.blocks = []
-
-    def _get_blocks_of_type(self, block_type):
-        return [block for block in self.blocks if block.type == block_type]
+        self.output_neurons = []
+        self.sync_neurons = []
+        self.rectifier_neurons = []
     
-    def input_blocks(self): return self._get_blocks_of_type(Block.input)
-
-    def output_blocks(self): return self._get_blocks_of_type(Block.output)
-
-    def trigger_blocks(self): return self._get_blocks_of_type(Block.trigger)
-    
-    def get_params_at_once(self):
-        return self.weight_e, self.weight_acc, self.t_min, self.t_neu
-    
-    def neurons(self): return [block.neurons for block in self.blocks]
-    
+    def neurons(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons
+        
     def names(self): return [block.name for block in self.blocks]
     
     def n_compartments(self):
@@ -57,16 +47,6 @@ class Layer:
     def n_recurrent_connections(self):
         return sum([block.n_recurrent_connections() for block in self.blocks])
 
-    def check_block_delays(self, t_max, numDendriticAccumulators):
-        for block in self.blocks:
-            if isinstance(block, quartz.blocks.Bias):
-                if not block.layout: block.layout_delays(t_max, numDendriticAccumulators)
-
-    def print_connections(self, maximum=10e7):
-        for i, block in enumerate(self.blocks):
-            block.print_connections()
-            if i > maximum: break
-
     def __repr__(self):
         return self.name
 
@@ -76,14 +56,12 @@ class InputLayer(Layer):
         super(InputLayer, self).__init__(name=name, **kwargs)
         self.layer_n = 0
         self.output_dims = dims
-        trigger_block = quartz.blocks.Input(name=name+"trigger:", type=Block.trigger, parent_layer=self)
-        trigger_block_bias = quartz.blocks.Input(name=name+"trigger-bias:", type=Block.trigger, parent_layer=self)
-        self.blocks += [trigger_block, trigger_block_bias]
+        self.sync_neurons += [Neuron(name=name+"sync:", type=Neuron.input)]
+        self.rectifier_neurons += [Neuron(name=name+"rectifier:", type=Neuron.input)]
         for channel in range(dims[0]):
             for height in range(dims[2]):
                 for width in range(dims[1]):
-                    pixel = quartz.blocks.Input(name=name+"input-c{}w{}h{}:".format(channel,height,width), parent_layer=self)
-                    self.blocks += [pixel]
+                    self.output_neurons += [Neuron(name=name+"input-c{}w{}h{}:".format(channel,height,width), type=Neuron.input)]
 
 
 class Dense(Layer):
@@ -94,46 +72,49 @@ class Dense(Layer):
         self.rectifying = rectifying
         self.output_dims = weights.shape[0]
 
-    def connect_from(self, prev_layer):
-        self.prev_layer = prev_layer
+    def connect_from(self, prev_layer, t_max):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
-        input_blocks = prev_layer.output_blocks()
-        assert weights.shape[1] == len(input_blocks)
+        assert weights.shape[1] == len(prev_layer.output_neurons)
         if biases is not None: assert weights.shape[0] == biases.shape[0]
-        prev_trigger = prev_layer.trigger_blocks()[0]
-        trigger_block = quartz.blocks.Trigger(n_channels=1, name=self.name+"trigger:", parent_layer=self)
-        trigger_delay = 0 #if isinstance(prev_layer, quartz.layers.InputLayer) else 1
-        prev_trigger.rectifier_neurons[0].connect_to(trigger_block.output_neurons[0], self.weight_e, trigger_delay)
-        prev_trigger.rectifier_neurons[0].connect_to(trigger_block.rectifier_neurons[0], self.weight_acc, trigger_delay)
-        self.blocks += [trigger_block]
+
+        # create and connect support neurons
+        sync = Neuron(name=self.name+"sync:", type=Neuron.sync)
+        rectifier = Neuron(name=self.name+"rectifier:", type=Neuron.rectifier)
+        self.sync_neurons += [sync]
+        self.rectifier_neurons += [rectifier]
+        prev_layer.rectifier_neurons[0].connect_to(sync, self.weight_e)
+        prev_layer.rectifier_neurons[0].connect_to(rectifier, self.weight_acc)
+        
+        # create all neurons converted from units and create self-inhibiting group connection
+        self.output_neurons = [Neuron(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
+        neuron_block = Block(name=self.name+"all-units")
+        neuron_block.neurons += self.output_neurons
+        neuron_block.connect_to(neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
+        self.blocks += [neuron_block]
+        
+        # group neurons from previous layer
+        output_block = Block(name=prev_layer.name+"dense-block")
+        prev_layer.blocks += [output_block]
+        output_block.neurons += prev_layer.output_neurons
+        
+        # connect groups
+        delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
+        output_block.connect_to(neuron_block, self.weights*self.weight_acc, 0, delay)
         for i in range(self.output_dims):
-            relco = quartz.blocks.ReLCo(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), 
-                                            monitor=self.monitor, parent_layer=self)
-            for j, block in enumerate(input_blocks):
-                weight = weights[i,j]
-                delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
-                block.first().connect_to(relco.neuron("calc"), weight*self.weight_acc, delay)
-            self.blocks += [relco]
             if biases is not None:
-                bias = quartz.blocks.Bias(value=biases[i], name=self.name+"bias-n{0:2.0f}:".format(i), 
-                                                   type=Block.hidden, parent_layer=self)
-                trigger_index = 1 if isinstance(prev_layer, (quartz.layers.InputLayer, quartz.layers.MaxPool2D)) else 0
-                prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e, 0)
-                bias_sign = np.sign(biases[i])
-                if bias_sign == 0: bias_sign = 1  # make it positive in case biases[i] == 0
-                bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)
-                self.blocks += [bias]
+                bias_sign = np.sign(biases[i]) if (biases[i] != 0) else 1
+                prev_layer.sync_neurons[0].connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, round(biases[i]*t_max))
             # negative sum of quantized weights to balance first spikes and bias
             bias_balance = -(bias_sign - 1) if biases is not None else 1
             weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance
             for _ in range(int(abs(weight_sum))):
-                trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), np.sign(weight_sum)*self.weight_acc, trigger_delay)
+                sync.connect_to(self.output_neurons[i], np.sign(weight_sum)*self.weight_acc)
             weight_rest = weight_sum - int(weight_sum)
-            trigger_block.output_neurons[0].connect_to(relco.neuron("calc"), weight_rest*self.weight_acc, trigger_delay)
+            sync.connect_to(self.output_neurons[i], weight_rest*self.weight_acc)
             if self.rectifying:
-                trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*251, trigger_delay)
+                rectifier.connect_to(self.output_neurons[i], 251, 6, 0)
 
 
 class Conv2D(Layer):

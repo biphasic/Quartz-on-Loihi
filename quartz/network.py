@@ -1,4 +1,4 @@
-from quartz.components import Neuron
+from quartz.neuron import Neuron
 from quartz.utils import decode_spike_timings, profile
 import quartz
 import numpy as np
@@ -17,25 +17,25 @@ from tqdm.auto import tqdm
 
 
 class Network:
-    def __init__(self, layers, name=''):
+    def __init__(self, t_max, layers, name=''):
         self.name = name
-        self.layers = layers
-        self.probes = []
-        self.layout_complete = False
-        for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
-            self.layers[i].connect_from(self.layers[i-1])
-        
-    def __call__(self, inputs, t_max, steps_per_image=None, profiling=False, logging=False, partition='loihi'):
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
+        self.layers = layers
+        self.probes = []
+        for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
+            self.layers[i].connect_from(self.layers[i-1], t_max)
+        # assign vth_mants according to t_max
+        self.check_vth_mants()
+        
+    def __call__(self, inputs, profiling=False, logging=False, partition='loihi'):
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
-        if steps_per_image == None:
-            n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
-            steps_per_image = int((n_layers+0.9)*self.t_max)
-        run_time = steps_per_image*batch_size
-        input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, steps_per_image)
+        # figure out presentation time for 1 sample and overall run time
+        n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
+        self.steps_per_image = int((n_layers+0.9)*self.t_max)
+        run_time = self.steps_per_image*batch_size
+        input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image)
         self.data = []
-        self.steps_per_image = steps_per_image
         if not logging:
             set_verbosity(LoggingLevel.ERROR)
         # monitor output layer and setup probes
@@ -53,7 +53,7 @@ class Network:
             return self.energy_probe
         else:
             self.data = output_probe.output()
-            output_array = output_probe.output()
+            output_array = output_probe.output()[1]
             last_layer = self.layers[-1]
             if isinstance(last_layer, quartz.layers.Dense):
                 if last_layer.rectifying: # False: # 
@@ -65,12 +65,6 @@ class Network:
     
     def build_model(self, input_spike_list):
         net = nx.NxNet()
-        # add intermediate neurons for delay encoder depending on # dendritic delays
-        self.check_block_delays(2**3)
-        # set weight exponents
-        self.set_weight_exponents(0)
-        # assign vth_mants according to t_max
-        self.check_vth_mants()
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
@@ -97,18 +91,10 @@ class Network:
     
     def n_recurrent_connections(self):
         return sum([layer.n_recurrent_connections() for layer in self.layers])
-    
-    def check_block_delays(self, numDendriticAccumulators):
-        for layer in self.layers:
-            layer.check_block_delays(self.t_max, numDendriticAccumulators)
 
     def check_vth_mants(self):
         for layer in self.layers:
-            layer.vth_mant = 2**(layer.weight_exponent + np.log2(self.t_max*layer.weight_acc))
-
-    def set_weight_exponents(self, expo):
-        for layer in self.layers:
-            layer.weight_exponent = expo
+            layer.vth_mant = 2**np.log2(self.t_max*layer.weight_acc)
 
     def set_probe_t_max(self):
         for layer in self.layers:
@@ -124,100 +110,87 @@ class Network:
         n_outgoing_axons_per_core = 4096
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-#             comps = layer.n_compartments()
-#             comp_limit = comps / n_compartments_per_core
-#             if i == 0:
-#                 conns_in = 1 # layer.n_recurrent_connections()
-#             else:
-#                 conns_in = self.layers[i-1].n_outgoing_connections()
-#             conns_out =  layer.n_outgoing_connections()
-#             conn_in_limit = conns_in / n_incoming_axons_per_core
-#             conn_out_limit = conns_out / n_outgoing_axons_per_core
-#             n_cores = max(comp_limit, conn_in_limit, conn_out_limit)
-#             max_comps_per_core = comps / n_cores
-#             if i == 0:
-#                 max_comps_per_core = 100
-#             elif i == 1:
-#                 max_comps_per_core = 100
-#             elif i == 2:
-#                 max_comps_per_core = 100
-#             else:
-#                 max_comps_per_core = 256
             max_comps_per_core = 256
-            for block in layer.blocks:
+            for neuron in layer.neurons():
                 if core_id >= 127: 
                     print(self.core_ids)
                     print(self.compartments_on_core)
                     raise NotImplementedError("Too many neurons for one Loihi chip")
-                if self.compartments_on_core[core_id] + len(block.neurons) >= max_comps_per_core:
+                if self.compartments_on_core[core_id] + 1 >= max_comps_per_core:
                     core_id += 1
                 self.core_ids[core_id] = i
-                block.core_id = core_id
-                self.compartments_on_core[core_id] += len(block.neurons)
+                neuron.core_id = core_id
+                self.compartments_on_core[core_id] += 1
             core_id += 1
-        self.layout_complete = True
         
     def create_compartments(self):
         net = nx.NxNet()
         self.spike_gen_processes = []
         measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
         layer_measurements = [nx.ProbeParameter.SPIKE]
-        for i, layer in enumerate(self.layers):
+
+        self.input_spike_gen = net.createSpikeGenProcess(numPorts=len(self.layers[0].output_neurons))
+        self.sync_spike_gen = net.createSpikeGenProcess(numPorts=len(self.layers[0].sync_neurons))
+        self.rectifier_spike_gen = net.createSpikeGenProcess(numPorts=len(self.layers[0].rectifier_neurons))
+        # input layer uses spike generators instead of neurons
+        for i, neuron in enumerate(self.layers[0].output_neurons):
+            neuron.loihi_neuron = self.input_spike_gen.spikeInputPortGroup.nodeSet[i]
+        for block in self.layers[0].blocks:
+            block_group = net.createSpikeInputPortGroup(size=0, name=block.name)
+            for neuron in block.neurons:
+                block_group.addSpikeInputPort(neuron.loihi_neuron)
+            block.loihi_block = block_group
+        # other layers
+        for i, layer in enumerate(self.layers[1:]):
+            for neuron in layer.neurons():
+                acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
+                pulse_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, compartmentCurrentDecay=4095)
+                loihi_neuron = net.createCompartment(acc_proto) if neuron.loihi_type == Neuron.acc else net.createCompartment(pulse_proto)
+                neuron.loihi_neuron = loihi_neuron
+                loihi_block = net.createCompartmentGroup(size=0)
+                loihi_block.addCompartments(loihi_neuron)
+                neuron.loihi_block = loihi_block
+                if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))
             for block in layer.blocks:
-                if isinstance(block, quartz.blocks.Input): # instead of compartment group create spike generators
-                    block_group = net.createSpikeGenProcess(numPorts=1)
-                    block.loihi_group = block_group
-                    self.spike_gen_processes.append(block_group)
-                    continue
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
-                block.loihi_group = block_group
-                acc_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
-                pulse_mant = (layer.weight_e - 1) * 2**layer.weight_exponent - 1
-                pulse_proto = nx.CompartmentPrototype(logicalCoreId=block.core_id, vThMant=pulse_mant, compartmentCurrentDecay=4095)
-                for neuron in block.neurons:
-                    loihi_neuron = net.createCompartment(acc_proto) if neuron.loihi_type == Neuron.acc else net.createCompartment(pulse_proto)
-                    neuron.loihi_neuron = loihi_neuron
-                    block_group.addCompartments(loihi_neuron)
-                    if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))
+                compartments = [neuron.loihi_neuron for neuron in block.neurons]
+                block_group.addCompartments(compartments)
+                block.loihi_block = block_group
                 if block.monitor: block.probe.set_loihi_probe(block_group.probe(measurements))
             if layer.monitor:
-                layer.probe.set_loihi_probe([block.loihi_group.probe(layer_measurements)[0] for block in layer.blocks if not isinstance(block, quartz.blocks.Bias)])
+                layer.probe.set_loihi_probe([block.loihi_block.probe(layer_measurements)[0] for block in layer.blocks])
         return net
-
+    
 #     @profile # uncomment to profile model building
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
+        for neuron in self.layers[0].sync_neurons:
+            for source, target, weight, exponent, delay in neuron.synapses:
+                prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=2 if weight >= 0 else 3)
+                self.sync_spike_gen.connect(target.loihi_neuron, prototype=prototype, weight=np.array(weight), delay=np.array(delay))
+        for neuron in self.layers[0].rectifier_neurons:
+            for source, target, weight, exponent, delay in neuron.synapses:
+                prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=2 if weight >= 0 else 3)
+                self.rectifier_spike_gen.connect(target.loihi_neuron, prototype=prototype, weight=np.array(weight), delay=np.array(delay))
         for l, layer in enumerate(self.layers):
-            for source in layer.blocks:
-                source_block = source.loihi_group
-                for target in source.get_connected_blocks():
-                    target_block = target.loihi_group
-                    weight_matrix, delay_matrix, exponent_matrix, mask_matrix = source.get_connection_matrices_to(target)
-                    if weight_matrix is None: continue
-                    weight_matrix = weight_matrix.round()
-#                     weight_matrix[weight_matrix>255] = 255
-#                     weight_matrix[weight_matrix<-255] = -255
-                    
-                    for weights, delays, exponents, mask in zip(weight_matrix, delay_matrix, exponent_matrix, mask_matrix):
-                        if mask.sum() != 0: # some weight maps are zeros
-                            proto_map = np.zeros_like(weights).astype(int)
-                            # create all the connection prototypes used for this connection by checking for unique combinations
-                            # of weight exponent and sign mode
-                            negative_sign_mask = (weights < 0).astype(int)
-                            stacked_masks = np.vstack((exponents[mask].ravel(), negative_sign_mask[mask].ravel()))
-                            unique_combs = np.unique(stacked_masks, axis=1).T
-                            conn_prototypes = [nx.ConnectionPrototype(weightExponent=expo+layer.weight_exponent, signMode=neg_sign+2) 
-                                               for (expo, neg_sign) in unique_combs]
-
-                            for i, proto in enumerate(conn_prototypes):
-                                if proto.signMode == 2:
-                                    proto_map[(weights>=0) & (exponents==proto.weightExponent)] = i
-                                else:
-                                    proto_map[(weights<0) & (exponents==proto.weightExponent)] = i
-
-                            if not isinstance(target, quartz.blocks.Input): # we cannot connect to a spike_generator
-                                connection = source_block.connect(target_block, prototype=conn_prototypes, prototypeMap=proto_map,
-                                                                  weight=weights, delay=delays, connectionMask=mask)
+            for block in layer.blocks:
+                for source, target, weights, exponent, delays in block.connections:
+                    conn_prototypes = [nx.ConnectionPrototype(weightExponent=exponent, signMode=2),
+                                       nx.ConnectionPrototype(weightExponent=exponent, signMode=3),]
+                    proto_map = np.zeros_like(weights).astype(int)
+                    proto_map[weights<0] = 1
+                    if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
+                        conn_prototypes[0] = conn_prototypes[1]
+                        proto_map = np.zeros_like(weights).astype(int)
+                    connection = source.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, 
+                                                            prototypeMap=proto_map, weight=weights, delay=np.array(delays))
+            if l > 0:
+                for neuron in layer.neurons():
+                    for source, target, weight, exponent, delay in neuron.synapses:
+                        if weight > 0:
+                            signMode = 2 if weight >= 0 else 3
+                            prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=signMode)
+                            neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)           
         return net
 
     def add_input_spikes(self, spike_list):
@@ -264,7 +237,7 @@ class Network:
             print(self.power_stats)
 
     def print_core_layout(self, redo=True):
-        if not self.layout_complete or redo: self.check_layout()
+        if redo: self.check_layout()
         print(self.core_ids)
         print(self.compartments_on_core)
 
