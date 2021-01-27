@@ -24,7 +24,7 @@ class Layer:
     
     def neurons(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons
         
-    def names(self): return [block.name for block in self.blocks]
+    def names(self): return [neuron.name for neuron in self.neurons()]
     
     def n_compartments(self):
         if isinstance(self, quartz.layers.InputLayer): return 0
@@ -81,7 +81,7 @@ class Dense(Layer):
 
         # create and connect support neurons
         sync = Neuron(name=self.name+"sync:", type=Neuron.sync)
-        rectifier = Neuron(name=self.name+"rectifier:", type=Neuron.rectifier)
+        rectifier = Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)
         self.sync_neurons += [sync]
         self.rectifier_neurons += [rectifier]
         prev_layer.rectifier_neurons[0].connect_to(sync, self.weight_e)
@@ -103,12 +103,12 @@ class Dense(Layer):
         delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
         output_block.connect_to(neuron_block, self.weights*self.weight_acc, 0, delay)
         for i in range(self.output_dims):
-            if biases is not None:
-                bias_sign = np.sign(biases[i]) if (biases[i] != 0) else 1
-                prev_layer.sync_neurons[0].connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, round(biases[i]*t_max))
+            if biases is not None and biases[i] != 0:
+                bias_sign = np.sign(biases[i])# if (biases[i] != 0) else 1
+                prev_layer.sync_neurons[0].connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, round((1-biases[i])*t_max))
             # negative sum of quantized weights to balance first spikes and bias
-            bias_balance = -(bias_sign - 1) if biases is not None else 1
-            weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance
+            bias_balance = -(bias_sign) if biases is not None and biases[i] != 0 else 0
+            weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance + 1
             for _ in range(int(abs(weight_sum))):
                 sync.connect_to(self.output_neurons[i], np.sign(weight_sum)*self.weight_acc)
             weight_rest = weight_sum - int(weight_sum)

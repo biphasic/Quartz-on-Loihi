@@ -125,7 +125,6 @@ class Network:
         
     def create_compartments(self):
         net = nx.NxNet()
-        self.spike_gen_processes = []
         measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
         layer_measurements = [nx.ProbeParameter.SPIKE]
 
@@ -158,11 +157,12 @@ class Network:
                 block.loihi_block = block_group
                 if block.monitor: block.probe.set_loihi_probe(block_group.probe(measurements))
             if layer.monitor:
-                layer.probe.set_loihi_probe([block.loihi_block.probe(layer_measurements)[0] for block in layer.blocks])
+                layer.probe.set_loihi_probe([neuron.loihi_neuron.probe(layer_measurements)[0] for neuron in layer.neurons()])
         return net
     
 #     @profile # uncomment to profile model building
     def connect_blocks(self, net):
+        num_dendritic_accumulators = 2**3
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for neuron in self.layers[0].sync_neurons:
             for source, target, weight, exponent, delay in neuron.synapses:
@@ -187,15 +187,19 @@ class Network:
             if l > 0:
                 for neuron in layer.neurons():
                     for source, target, weight, exponent, delay in neuron.synapses:
-                        if weight > 0:
-                            signMode = 2 if weight >= 0 else 3
-                            prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=signMode)
+                        if weight != 0:
+                            prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
                             neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)           
         return net
 
     def add_input_spikes(self, spike_list):
-        for spike_generator, spikes in zip(self.spike_gen_processes, spike_list):
-            spike_generator.addSpikes(spikeInputPortNodeIds=0, spikeTimes=spikes)
+        for s, spikes in enumerate(spike_list):
+            if s == 0:
+                self.sync_spike_gen.addSpikes(spikeInputPortNodeIds=0, spikeTimes=spikes)
+            elif s == 1:
+                self.rectifier_spike_gen.addSpikes(spikeInputPortNodeIds=0, spikeTimes=spikes)
+            else:
+                self.input_spike_gen.addSpikes(spikeInputPortNodeIds=s-2, spikeTimes=spikes)
 
     def add_snips(self, board):
         snip_dir = os.getcwd() + "/quartz/snips"
