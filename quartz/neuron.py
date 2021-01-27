@@ -8,9 +8,13 @@ class Neuron:
         self.name = name
         self.monitor = monitor
         self.synapses = []
+        self.connections = []
 
     def connect_to(self, target_neuron, weight, exponent=0, delay=0):
-        self.synapses.append((self, target_neuron, weight, exponent, delay))
+        self.synapses.append((target_neuron, weight, exponent, delay))
+        
+    def group_connect_to(self, target_group, weight, exponent=0, delay=0):
+        self.connections.append((target_group, weight, exponent, delay))
 
     def __repr__(self):
         return self.name

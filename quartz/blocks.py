@@ -8,8 +8,8 @@ class Block:
         self.neurons = []
         self.connections = []
 
-    def connect_to(self, target_neuron, weight, exponent=0, delay=0):
-        self.connections.append((self, target_neuron, weight, exponent, delay))
+    def connect_to(self, target_group, weight, exponent=0, delay=0):
+        self.connections.append((target_group, weight, exponent, delay))
 
     def __repr__(self):
         return self.name

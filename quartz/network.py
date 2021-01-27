@@ -62,7 +62,7 @@ class Network:
                 output_array = output_array.reshape(*last_layer.output_dims, batch_size)
                 output_array = np.transpose(output_array, (3,0,1,2))
             return output_array
-    
+
     def build_model(self, input_spike_list):
         net = nx.NxNet()
         # assign core layout based on no of compartments and no of unique connections
@@ -79,10 +79,10 @@ class Network:
 
     def n_compartments(self):
         return sum([layer.n_compartments() for layer in self.layers])
-    
+
     def n_parameters(self):
         return sum([layer.n_parameters() for layer in self.layers])
-    
+
     def n_spikes(self):
         return sum([layer.n_spikes() for layer in self.layers])
     
@@ -162,19 +162,18 @@ class Network:
     
 #     @profile # uncomment to profile model building
     def connect_blocks(self, net):
-        num_dendritic_accumulators = 2**3
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for neuron in self.layers[0].sync_neurons:
-            for source, target, weight, exponent, delay in neuron.synapses:
+            for target, weight, exponent, delay in neuron.synapses:
                 prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=2 if weight >= 0 else 3)
                 self.sync_spike_gen.connect(target.loihi_neuron, prototype=prototype, weight=np.array(weight), delay=np.array(delay))
         for neuron in self.layers[0].rectifier_neurons:
-            for source, target, weight, exponent, delay in neuron.synapses:
+            for target, weight, exponent, delay in neuron.synapses:
                 prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=2 if weight >= 0 else 3)
                 self.rectifier_spike_gen.connect(target.loihi_neuron, prototype=prototype, weight=np.array(weight), delay=np.array(delay))
         for l, layer in enumerate(self.layers):
             for block in layer.blocks:
-                for source, target, weights, exponent, delays in block.connections:
+                for target, weights, exponent, delays in block.connections:
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=exponent, signMode=2),
                                        nx.ConnectionPrototype(weightExponent=exponent, signMode=3),]
                     proto_map = np.zeros_like(weights).astype(int)
@@ -182,11 +181,15 @@ class Network:
                     if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-                    connection = source.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, 
+                    connection = block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, 
                                                             prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             if l > 0:
                 for neuron in layer.neurons():
-                    for source, target, weight, exponent, delay in neuron.synapses:
+                    for target, weight, exponent, delay in neuron.connections:
+                        if weight != 0:
+                            prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
+                            neuron.loihi_block.connect(target.loihi_block, prototype=prototype)  
+                    for target, weight, exponent, delay in neuron.synapses:
                         if weight != 0:
                             prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
                             neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)           
