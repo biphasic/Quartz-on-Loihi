@@ -101,11 +101,15 @@ class Dense(Layer):
         output_block.connect_to(layer_neuron_block, self.weights*self.weight_acc, 0, delay)
         
         # balancing connections from sync neuron for this layer
+        sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         if biases is None: biases = np.zeros((self.output_dims))
         weight_sums = [-sum((weights[output,:]) + np.sign(biases[output])) + 1 for output in range(self.output_dims)] # *255).round()/255
-        print(weight_sums)
-        sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
-        sync_block.connect_to(layer_neuron_block, np.array(weight_sums)*self.weight_acc, 0, 0)
+        clipped = np.clip(weight_sums, -1, 1)
+        sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc, 0, 0)
+        while np.sum(weight_sums - clipped) != 0:
+            weight_sums = weight_sums - clipped
+            clipped = np.clip(weight_sums, -1, 1)
+            sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc, 0, 0)
         self.blocks += [sync_block]
 
         for i in range(self.output_dims):

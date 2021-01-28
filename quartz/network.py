@@ -128,18 +128,18 @@ class Network:
         measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
         layer_measurements = [nx.ProbeParameter.SPIKE]
 
+        # input layer uses spike generators instead of neurons
         self.input_spike_gen = net.createSpikeGenProcess(numPorts=len(self.layers[0].output_neurons))
         self.layers[0].sync_neurons[0].loihi_neuron = net.createSpikeGenProcess(numPorts=len(self.layers[0].sync_neurons))
         self.layers[0].rectifier_neurons[0].loihi_neuron = net.createSpikeGenProcess(numPorts=len(self.layers[0].rectifier_neurons))
-        # input layer uses spike generators instead of neurons
         for i, neuron in enumerate(self.layers[0].output_neurons):
             neuron.loihi_neuron = self.input_spike_gen.spikeInputPortGroup.nodeSet[i]
-#             ipdb.set_trace()
         for block in self.layers[0].blocks:
             block_group = net.createSpikeInputPortGroup(size=0, name=block.name)
             for neuron in block.neurons:
                 block_group.addSpikeInputPort(neuron.loihi_neuron)
             block.loihi_block = block_group
+        
         # other layers
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.neurons():
@@ -156,7 +156,7 @@ class Network:
             if layer.monitor:
                 layer.probe.set_loihi_probe([neuron.loihi_neuron.probe(layer_measurements)[0] for neuron in layer.neurons()])
         return net
-    
+
 #     @profile # uncomment to profile model building
     def connect_blocks(self, net):
         print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
@@ -171,7 +171,6 @@ class Network:
                     if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-                    #ipdb.set_trace()
                     block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             for neuron in layer.neurons():
