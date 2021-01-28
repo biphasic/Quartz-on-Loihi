@@ -21,7 +21,7 @@ class TestLayers(unittest.TestCase):
         biases = (np.random.rand(dim_output) - 0.5) / 2 # np.zeros((dim_output)) # 
         inputs = np.random.rand(*dim_input) / 3
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max=t_max, layers=[
             layers.InputLayer(dims=dim_input[1:]),
             layers.Dense(weights=weights, biases=biases),
         ])
@@ -34,7 +34,7 @@ class TestLayers(unittest.TestCase):
         model[0].weight = torch.nn.Parameter(torch.tensor(q_weights))
         model[0].bias = torch.nn.Parameter(torch.tensor((q_biases)))
         model_output = model(torch.tensor(q_inputs.reshape(dim_input[0], -1))).detach().numpy()
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         combinations = list(zip(loihi_output.flatten(), model_output.flatten()))

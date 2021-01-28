@@ -171,12 +171,12 @@ class Network:
                     if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
+#                     ipdb.set_trace()
                     block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             for neuron in layer.neurons():
                 for target, weight, exponent, delay in neuron.synapses:
                     if weight != 0:
-                        print(neuron, target, weight)
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
         return net

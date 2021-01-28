@@ -19,12 +19,13 @@ class Layer:
         self.layer_n = None
         self.blocks = []
         self.output_neurons = []
+        self.bias_neurons = []
         self.sync_neurons = []
         self.rectifier_neurons = []
         self.num_dendritic_accumulators = 2**3
 
     
-    def neurons(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons
+    def neurons(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons + self.bias_neurons
         
     def names(self): return [neuron.name for neuron in self.neurons()]
     
@@ -115,11 +116,14 @@ class Dense(Layer):
         for i in range(self.output_dims):
             if biases is not None and biases[i] != 0:
                 bias_sign = np.sign(biases[i])
-#                 delay = round((1-biases[i])*t_max)
+                delay = round((1-biases[i])*t_max)
                 source = prev_layer.sync_neurons[0]
-#                 while delay > self.num_dendritic_accumulators
-                source.connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, )
-#                 print(round((1-biases[i])*t_max))
+                while delay > (self.num_dendritic_accumulators-2):
+                    self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(i))]
+                    source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.num_dendritic_accumulators-2)
+                    source = self.bias_neurons[-1]
+                    delay -= self.num_dendritic_accumulators-2+1
+                source.connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, delay)
 
         if self.rectifying:
             rectifier_block = Block(neurons=self.rectifier_neurons, name=self.name+"sync-block")
