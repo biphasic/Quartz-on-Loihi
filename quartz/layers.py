@@ -101,26 +101,26 @@ class Dense(Layer):
         prev_layer.blocks += [output_block]
         output_block.neurons += prev_layer.output_neurons
         
-        # connect groups
+        # connections between layers
         delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
         output_block.connect_to(neuron_block, self.weights*self.weight_acc, 0, delay)
+        
+        # balancing connections from sync neuron for this layer
+        if biases is None: biases = np.zeros((self.output_dims))
+        weight_sums = [-sum((weights[output,:]*255).round()/255 + np.sign(biases[output])) + 1 for output in range(self.output_dims)]
+        sync.group_connect_to(neuron_block, np.array(weight_sums), 0, 0)
+
         for i in range(self.output_dims):
             if biases is not None and biases[i] != 0:
                 bias_sign = np.sign(biases[i])
 #                 delay = round((1-biases[i])*t_max)
-#                 source = prev_layer.sync_neurons[0]
+                source = prev_layer.sync_neurons[0]
 #                 while delay > self.num_dendritic_accumulators
-#                     source.connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, )
+                source.connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, )
 #                 print(round((1-biases[i])*t_max))
-            # negative sum of quantized weights to balance first spikes and bias
-            bias_balance = -(bias_sign) if biases is not None and biases[i] != 0 else 0
-            weight_sum = -sum((weights[i,:]*255).round()/255) + bias_balance + 1
-            for _ in range(int(abs(weight_sum))):
-                sync.connect_to(self.output_neurons[i], np.sign(weight_sum)*self.weight_acc)
-            weight_rest = weight_sum - int(weight_sum)
-            sync.connect_to(self.output_neurons[i], weight_rest*self.weight_acc)
+
         if self.rectifying:
-            rectifier.group_connect_to(neuron_block, 251, 6, 0)
+            rectifier.group_connect_to(neuron_block, np.array([251]), 6, 0)
 
 
 class Conv2D(Layer):

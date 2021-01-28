@@ -174,6 +174,7 @@ class Network:
         for l, layer in enumerate(self.layers):
             for block in layer.blocks:
                 for target, weights, exponent, delays in block.connections:
+                    mask = np.array(weight != 0)
                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=exponent, signMode=2),
                                        nx.ConnectionPrototype(weightExponent=exponent, signMode=3),]
                     proto_map = np.zeros_like(weights).astype(int)
@@ -181,14 +182,22 @@ class Network:
                     if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-                    connection = block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, 
-                                                            prototypeMap=proto_map, weight=weights, delay=np.array(delays))
+                    block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
+                                              prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             if l > 0:
                 for neuron in layer.neurons():
-                    for target, weight, exponent, delay in neuron.connections:
-                        if weight != 0:
-                            prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
-                            neuron.loihi_block.connect(target.loihi_block, prototype=prototype)  
+                    for target, weights, exponent, delays in neuron.connections:
+                        mask = np.array(weight != 0)
+                        conn_prototypes = [nx.ConnectionPrototype(weightExponent=exponent, signMode=2),
+                                           nx.ConnectionPrototype(weightExponent=exponent, signMode=3),]
+                        proto_map = np.zeros_like(weights).astype(int)
+                        proto_map[weights<0] = 1
+                        if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
+                            conn_prototypes[0] = conn_prototypes[1]
+                            proto_map = np.zeros_like(weights).astype(int)
+                        if np.sum(mask) > 0:
+                            neuron.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
+                                                       prototypeMap=proto_map, weight=weights, delay=np.array(delays))  
                     for target, weight, exponent, delay in neuron.synapses:
                         if weight != 0:
                             prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
