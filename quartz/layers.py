@@ -82,33 +82,31 @@ class Dense(Layer):
         if biases is not None: assert weights.shape[0] == biases.shape[0]
 
         # create and connect support neurons
-        sync = Neuron(name=self.name+"sync:", type=Neuron.sync)
-        rectifier = Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)
-        self.sync_neurons += [sync]
-        self.rectifier_neurons += [rectifier]
-        prev_layer.rectifier_neurons[0].connect_to(sync, self.weight_e)
-        prev_layer.rectifier_neurons[0].connect_to(rectifier, self.weight_acc)
+        self.sync_neurons = [Neuron(name=self.name+"sync:", type=Neuron.sync)]
+        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)]
+        prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
+        prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
         # create all neurons converted from units and create self-inhibiting group connection
         self.output_neurons = [Neuron(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
-        neuron_block = Block(name=self.name+"all-units")
-        neuron_block.neurons += self.output_neurons
-        neuron_block.connect_to(neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
-        self.blocks += [neuron_block]
+        layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
+        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
+        self.blocks += [layer_neuron_block]
         
         # group neurons from previous layer
-        output_block = Block(name=prev_layer.name+"dense-block")
+        output_block = Block(neurons=prev_layer.output_neurons, name=prev_layer.name+"dense-block")
         prev_layer.blocks += [output_block]
-        output_block.neurons += prev_layer.output_neurons
-        
         # connections between layers
         delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
-        output_block.connect_to(neuron_block, self.weights*self.weight_acc, 0, delay)
+        output_block.connect_to(layer_neuron_block, self.weights*self.weight_acc, 0, delay)
         
         # balancing connections from sync neuron for this layer
         if biases is None: biases = np.zeros((self.output_dims))
-        weight_sums = [-sum((weights[output,:]*255).round()/255 + np.sign(biases[output])) + 1 for output in range(self.output_dims)]
-        sync.group_connect_to(neuron_block, np.array(weight_sums), 0, 0)
+        weight_sums = [-sum((weights[output,:]) + np.sign(biases[output])) + 1 for output in range(self.output_dims)] # *255).round()/255
+        print(weight_sums)
+        sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
+        sync_block.connect_to(layer_neuron_block, np.array(weight_sums)*self.weight_acc, 0, 0)
+        self.blocks += [sync_block]
 
         for i in range(self.output_dims):
             if biases is not None and biases[i] != 0:
@@ -120,7 +118,9 @@ class Dense(Layer):
 #                 print(round((1-biases[i])*t_max))
 
         if self.rectifying:
-            rectifier.group_connect_to(neuron_block, np.array([251]), 6, 0)
+            rectifier_block = Block(neurons=self.rectifier_neurons, name=self.name+"sync-block")
+            rectifier_block.connect_to(layer_neuron_block, np.array([251]), 6, 0)
+            self.blocks += [rectifier_block]
 
 
 class Conv2D(Layer):

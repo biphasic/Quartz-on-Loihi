@@ -46,8 +46,8 @@ def decode_values_into_spike_input(samples, t_max, steps_per_sample, t_min=1, st
     inputs.append([])
     inputs.append([])
     for sample in samples:
-        inputs[0] += [int(start_time)] # trigger for biases
-        inputs[1] += [int(start_time+t_max-t_min)] # trigger for other triggers
+        inputs[0] += [int(start_time)] # sync
+        inputs[1] += [int(start_time+t_max-t_min)] # rectifier
         for c, channel in enumerate(sample):
             for i, value in enumerate(channel.flatten()):
                 inputs[c*len(channel.flatten())+i+2] += [int((t_max*(1-value)).round() + start_time)]
