@@ -18,7 +18,7 @@ class TestFunctionality(unittest.TestCase):
         weights = np.ones((dim_output,np.product(dim_input)))
         biases = np.random.rand(dim_output) - 0.5
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=dim_input),
             layers.Dense(weights=weights, biases=biases, rectifying=False),
         ])
@@ -26,7 +26,7 @@ class TestFunctionality(unittest.TestCase):
         quantized_biases = (biases*t_max).round()/t_max
         ideal_output = np.maximum(quantized_biases.flatten(), 0)
         ideal_output = quantized_biases.flatten()
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         self.assertEqual(len(loihi_output.flatten()), len(quantized_biases.flatten()))
         self.assertTrue(all(loihi_output.flatten() == ideal_output.flatten()))
 
@@ -41,7 +41,7 @@ class TestFunctionality(unittest.TestCase):
         np.random.seed(seed=47)
         weights = np.ones((dim_output,np.product(dim_input))) / 255
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=dim_input),
             layers.Dense(weights=weights, biases=None),
         ])
@@ -57,7 +57,7 @@ class TestFunctionality(unittest.TestCase):
         model_output = pt_model(torch.tensor(quantized_values).flatten()).detach().numpy()
         quantized_model_output = (model_output * t_max).round() / t_max
         
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         self.assertEqual(loihi_output, quantized_model_output)
 
@@ -75,7 +75,7 @@ class TestFunctionality(unittest.TestCase):
         dim_output = 1
         weights = np.array([weights])
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=dim_input),
             layers.Dense(weights=weights, biases=None, weight_acc=128),
         ])
@@ -90,7 +90,7 @@ class TestFunctionality(unittest.TestCase):
         pt_model[0].weight = torch.nn.Parameter(torch.tensor(weights))
         pt_model[0].bias = torch.nn.Parameter(torch.tensor(np.zeros(dim_output)))
         model_output = pt_model(torch.tensor(quantized_values).flatten()).detach().numpy()
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         self.assertEqual(len(loihi_output), len(model_output.flatten()))
         self.assertEqual(loihi_output, np.maximum(model_output.flatten(), 0))
         #self.assertGreater(loihi_model.data[1]['l2-monitor:trigger:'], relco_probe.output()[1]['l1-dense:relco-n  0:calc'])  
@@ -106,11 +106,11 @@ class TestFunctionality(unittest.TestCase):
         weights = np.array([weights])
         values = np.array(values)
         
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=dim_input),
             layers.Dense(weights=weights, biases=None, rectifying=True, weight_acc=128),
         ])
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         self.assertEqual(loihi_output, values)
 
     @parameterized.expand([
@@ -126,10 +126,10 @@ class TestFunctionality(unittest.TestCase):
         bias = np.zeros(dim_output)
         values = np.array(values)
         
-        loihi_model = quartz.Network(t_max=t_max, layers=[
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=dim_input),
             layers.Dense(weights=weights1, biases=bias, rectifying=True),
             layers.Dense(weights=weights2, biases=bias, rectifying=True),
         ])
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         self.assertEqual(loihi_output, np.maximum(weights2*np.maximum(weights1*values, 0),0))

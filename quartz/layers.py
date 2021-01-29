@@ -91,7 +91,7 @@ class Dense(Layer):
         # create all neurons converted from units and create self-inhibiting group connection
         self.output_neurons = [Neuron(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 0, 0)
+        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
         
         # group neurons from previous layer
@@ -104,7 +104,7 @@ class Dense(Layer):
         # balancing connections from sync neuron for this layer
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         if biases is None: biases = np.zeros((self.output_dims))
-        weight_sums = [-sum((weights[output,:]) + np.sign(biases[output])) + 1 for output in range(self.output_dims)] # *255).round()/255
+        weight_sums = [-sum((weights[output,:]*255).round()/255) - np.sign(biases[output]) + 1 for output in range(self.output_dims)]
         clipped = np.clip(weight_sums, -1, 1)
         sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc, 0, 0)
         while np.sum(weight_sums - clipped) != 0:

@@ -168,11 +168,11 @@ class Network:
                                        nx.ConnectionPrototype(weightExponent=exponent, signMode=3),]
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
-                    if np.sum(weights<0) > 0 and (np.sum(proto_map) == np.sum(weights<0)): # edge case where only negative connections and conn_prototypes[0] is unused
+                    weights = weights.round()
+                    if np.sum(proto_map[proto_map==mask]) == np.sum(mask):
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-#                     ipdb.set_trace()
-                    block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
+                    block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, #connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             for neuron in layer.neurons():
                 for target, weight, exponent, delay in neuron.synapses:
