@@ -134,7 +134,7 @@ class Dense(Layer):
 
 
 class Conv2D(Layer):
-    def __init__(self, weights, biases=None, stride=(1,1), padding=(0,0), groups=1, name="conv2D:", monitor=False, **kwargs):
+    def __init__(self, weights, biases=None, stride=(1,1), padding=(0,0), groups=1, rectifying=True, name="conv2D:", monitor=False, **kwargs):
         super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights.copy()
         self.biases = biases
@@ -143,6 +143,7 @@ class Conv2D(Layer):
         if isinstance(padding, int): padding = (padding, padding)
         self.padding = padding
         self.groups = groups
+        self.rectifying = rectifying
 
     def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
@@ -174,6 +175,7 @@ class Conv2D(Layer):
         assert isinstance(n_groups_out, int) or n_groups_out.is_integer() # and n_groups_in.is_integer()
         n_groups_out = int(n_groups_out)
 
+        weight_sums = np.zeros((output_channels, np.product(side_lengths),))
         if biases is None: biases = np.zeros((output_channels))
         for g in range(self.groups): # split feature maps into groups
             for output_channel in range(g*n_groups_out,(g+1)*n_groups_out): # loop over output channels in one group
@@ -192,21 +194,32 @@ class Conv2D(Layer):
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
                         assert len(block_patch.neurons) == patch_weights.shape[0]
                         block_patch.connect_to(relco_block, patch_weights*self.weight_acc)
-#                         print(block_patch.neurons, patch_weights)
-#                         ipdb.set_trace()
-                    weight_sum = -sum(patch_weights) - np.sign(biases[output_channel]) + 1
-                    clipped = np.clip(weight_sum, -1, 1)
-                    self.sync_neurons[0].connect_to(self.output_neurons[-1], np.array(clipped)*self.weight_acc) # change to multiple sync neurons?
-                    while np.sum(weight_sum - clipped) != 0:
-                        weight_sum = weight_sum - clipped
-                        clipped = np.clip(weight_sum, -1, 1)
-                        self.sync_neurons[0].connect_to(self.output_neurons[-1], np.array(clipped)*self.weight_acc)
-                    
-        # create all neurons converted from units and create self-inhibiting group connection
+                        weight_sums[output_channel, i] += -sum(patch_weights) - np.sign(biases[output_channel])
+#                         print(block_patch.neurons)
         
+        print(weight_sums)
+        weight_sums = weight_sums.flatten() + 1
+#         weight_sums = np.array(weight_sums).reshape(output_channels, *side_lengths, input_channels)
+#         ipdb.set_trace()
+        
+        # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 0, 0)
+        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
+        
+        sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
+        clipped = np.clip(weight_sums, -1, 1)
+        sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc) # change to multiple sync neurons?
+        while np.sum(weight_sums - clipped) != 0:
+            weight_sums = weight_sums - clipped
+            clipped = np.clip(weight_sums, -1, 1)
+            sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc)
+        self.blocks += [sync_block]
+
+        if self.rectifying:
+            rectifier_block = Block(neurons=self.rectifier_neurons, name=self.name+"sync-block")
+            rectifier_block.connect_to(layer_neuron_block, np.array([251]), 6, 0)
+            self.blocks += [rectifier_block]
 
 
 class MaxPool2D(Layer):

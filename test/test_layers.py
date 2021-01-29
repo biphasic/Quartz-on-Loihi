@@ -56,7 +56,7 @@ class TestLayers(unittest.TestCase):
         biases = (np.random.rand(weight_dims[0])-0.5) / 2 # np.zeros((weight_dims[0])) # 
         inputs = np.random.rand(*input_dims) / 3
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights, biases=biases, padding=padding, groups=groups),
         ])
@@ -69,7 +69,7 @@ class TestLayers(unittest.TestCase):
         model[0].weight = torch.nn.Parameter(torch.tensor(q_weights))
         model[0].bias = torch.nn.Parameter(torch.tensor(q_biases))
         model_output = model(torch.tensor(q_inputs)).squeeze().detach().numpy()
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
@@ -88,11 +88,11 @@ class TestLayers(unittest.TestCase):
         np.random.seed(seed=27)
         inputs = np.random.rand(*input_dims) / 2
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.MaxPool2D(kernel_size=kernel_size)
         ])
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
 
         model = nn.MaxPool2d(kernel_size=kernel_size)
         model_output = model(torch.tensor((inputs*t_max).round()/t_max)).detach().numpy()
@@ -118,7 +118,7 @@ class TestLayers(unittest.TestCase):
         biases = np.zeros((weight_dims[0])) 
         inputs = np.random.rand(*input_dims) / 2 # np.ones((input_dims)) / 2 #
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights),
             layers.MaxPool2D(kernel_size=kernel_size)
@@ -133,7 +133,7 @@ class TestLayers(unittest.TestCase):
         model[0].bias = torch.nn.Parameter(torch.tensor((q_biases)))
         model_output = model(torch.tensor(q_inputs)).detach().numpy()
         
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
