@@ -91,7 +91,7 @@ class Dense(Layer):
         # create all neurons converted from units and create self-inhibiting group connection
         self.output_neurons = [Neuron(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
+        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 0, 0)
         self.blocks += [layer_neuron_block]
         
         # group neurons from previous layer
@@ -114,9 +114,9 @@ class Dense(Layer):
         self.blocks += [sync_block]
 
         for i in range(self.output_dims):
-            if biases is not None and biases[i] != 0:
+            if biases[i] != 0:
                 bias_sign = np.sign(biases[i])
-                delay = round((1-biases[i])*t_max)
+                delay = round((1-abs(biases[i]))*t_max)
                 source = prev_layer.sync_neurons[0]
                 while delay > (self.num_dendritic_accumulators-2):
                     self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(i))]
