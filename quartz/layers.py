@@ -85,6 +85,7 @@ class Dense(Layer):
         # create and connect support neurons
         self.sync_neurons = [Neuron(name=self.name+"sync:", type=Neuron.sync)]
         self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)]
+        self.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], -self.weight_acc)
         prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
@@ -98,8 +99,7 @@ class Dense(Layer):
         output_block = Block(neurons=prev_layer.output_neurons, name=prev_layer.name+"dense-block")
         prev_layer.blocks += [output_block]
         # connections between layers
-        delay = 0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
-        output_block.connect_to(layer_neuron_block, self.weights*self.weight_acc, 0, delay)
+        output_block.connect_to(layer_neuron_block, self.weights*self.weight_acc, 0, 0)
         
         # balancing connections from sync neuron for this layer
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
