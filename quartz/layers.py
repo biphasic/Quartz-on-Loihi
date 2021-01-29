@@ -79,6 +79,7 @@ class Dense(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
+        weights = (weights*self.weight_acc).round()/self.weight_acc
         assert weights.shape[1] == len(prev_layer.output_neurons)
         if biases is not None: assert weights.shape[0] == biases.shape[0]
 
@@ -104,7 +105,7 @@ class Dense(Layer):
         # balancing connections from sync neuron for this layer
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         if biases is None: biases = np.zeros((self.output_dims))
-        weight_sums = [-sum((weights[output,:]*255).round()/255) - np.sign(biases[output]) + 1 for output in range(self.output_dims)]
+        weight_sums = [-sum(weights[output,:]) - np.sign(biases[output]) + 1 for output in range(self.output_dims)]
         clipped = np.clip(weight_sums, -1, 1)
         sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc, 0, 0)
         while np.sum(weight_sums - clipped) != 0:
@@ -113,17 +114,18 @@ class Dense(Layer):
             sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc, 0, 0)
         self.blocks += [sync_block]
 
-        for i in range(self.output_dims):
-            if biases[i] != 0:
-                bias_sign = np.sign(biases[i])
-                delay = round((1-abs(biases[i]))*t_max)
+        # connect biases
+        for b, bias in enumerate(biases):
+            if bias != 0:
+                bias_sign = np.sign(bias)
+                delay = round((1-abs(bias))*t_max)
                 source = prev_layer.sync_neurons[0]
                 while delay > (self.num_dendritic_accumulators-2):
-                    self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(i))]
+                    self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(b))]
                     source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.num_dendritic_accumulators-2)
                     source = self.bias_neurons[-1]
                     delay -= self.num_dendritic_accumulators-2+1
-                source.connect_to(self.output_neurons[i], bias_sign*self.weight_acc, 0, delay)
+                source.connect_to(self.output_neurons[b], bias_sign*self.weight_acc, 0, delay)
 
         if self.rectifying:
             rectifier_block = Block(neurons=self.rectifier_neurons, name=self.name+"sync-block")
@@ -142,7 +144,7 @@ class Conv2D(Layer):
         self.padding = padding
         self.groups = groups
 
-    def connect_from(self, prev_layer):
+    def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
@@ -150,62 +152,61 @@ class Conv2D(Layer):
         weights = (weights*self.weight_acc).round()/self.weight_acc
         assert weights.shape[1]*self.groups == prev_layer.output_dims[0]
         if biases is not None: assert weights.shape[0] == biases.shape[0]
-        input_blocks = prev_layer.output_blocks()
         output_channels, input_channels, *kernel_size = self.weights.shape
-        input_channels *= self.groups
         side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0] + 2*self.padding[0]) / self.stride[0] + 1), 
                         int((prev_layer.output_dims[2] - kernel_size[1] + 2*self.padding[1]) / self.stride[1] + 1))
         self.output_dims = (output_channels, *side_lengths)
-
-        input_blocks = np.pad(np.array(input_blocks).reshape(*prev_layer.output_dims), 
+        
+        # create and connect support neurons
+        self.sync_neurons = [Neuron(name=self.name+"sync:", type=Neuron.sync)]
+        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)]
+        self.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], -self.weight_acc)
+        prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
+        prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
+        
+        input_neurons = prev_layer.output_neurons
+        input_neurons = np.pad(np.array(input_neurons).reshape(*prev_layer.output_dims), 
                               ((0,0), self.padding, self.padding), 'constant', constant_values=(0))
-        indices = np.arange(len(input_blocks.ravel())).reshape(input_blocks.shape)
-        input_blocks = input_blocks.ravel()
-        n_groups_out = output_channels//self.groups
-        n_groups_in = input_channels//self.groups
-        prev_trigger = prev_layer.trigger_blocks()[0]
-        trigger_delay = 0 #if isinstance(prev_layer, quartz.layers.InputLayer) else 2
-        trigger_block = quartz.blocks.Trigger(n_channels=output_channels, name=self.name+"trigger:", parent_layer=self)
-        for i in range(output_channels):
-            prev_trigger.rectifier_neurons[0].connect_to(trigger_block.output_neurons[i], self.weight_e, trigger_delay)
-        prev_trigger.rectifier_neurons[0].connect_to(trigger_block.rectifier_neurons[0], self.weight_acc, trigger_delay)
-        self.blocks += [trigger_block]
+        indices = np.arange(len(input_neurons.ravel())).reshape(input_neurons.shape)
+        input_neurons = input_neurons.ravel()
+        n_groups_out = output_channels/self.groups
+        n_groups_in = int(input_channels)#/self.groups
+        assert isinstance(n_groups_out, int) or n_groups_out.is_integer() # and n_groups_in.is_integer()
+        n_groups_out = int(n_groups_out)
+
+        if biases is None: biases = np.zeros((output_channels))
         for g in range(self.groups): # split feature maps into groups
             for output_channel in range(g*n_groups_out,(g+1)*n_groups_out): # loop over output channels in one group
                 patches = [image.extract_patches_2d(indices[input_channel,:,:], (kernel_size)) for input_channel in range(input_channels)]
                 patches = np.stack(patches)
-                assert np.product(side_lengths) == patches.shape[1]
-                if biases is not None: # create bias for output channel
-                    bias = quartz.blocks.Bias(value=biases[output_channel], name=self.name+"bias-n{0:2.0f}:".format(output_channel), 
-                                                       type=Block.hidden, monitor=False, parent_layer=self)
-                    trigger_index = 1 if isinstance(prev_layer, (quartz.layers.InputLayer, quartz.layers.MaxPool2D)) else 0
-                    prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(bias.input_neurons[0], self.weight_e)
-                    self.blocks += [bias]
+                assert np.product(side_lengths) == patches.shape[1]                
+                
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
-                    relco = quartz.blocks.ReLCo(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), parent_layer=self)
-                    self.blocks += [relco]
-                    if biases is not None:
-                        bias_sign = np.sign(biases[output_channel])
-                        if bias_sign == 0: bias_sign = 1  # make it positive in case biases[i] == 0
-                        bias.output_neurons[0].connect_to(relco.input_neurons[0], bias_sign*self.weight_acc)                   
-                    weight_sum = 0
-                    delay =  0 if isinstance(prev_layer, quartz.layers.InputLayer) else 1
+                    self.output_neurons += [Neuron(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), loihi_type=Neuron.acc)]
+                    relco_block = Block(neurons=[self.output_neurons[-1]], name=self.name+"relco-block-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i))
+                    self.blocks += [relco_block]
+
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
-                        block_patch = input_blocks[patches[input_channel,i,:,:].ravel()]
+                        block_patch = Block(neurons=list(input_neurons[patches[input_channel,i,:,:].ravel()]))
+                        prev_layer.blocks += [block_patch]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
-                        assert block_patch.shape[0] == patch_weights.shape[0]
-                        for j, block in enumerate(block_patch):
-                            if block != 0: # no connection when trying to connect to padding block
-                                weight = patch_weights[j]
-                                weight_sum += weight
-                                block.output_neurons[0].connect_to(relco.input_neurons[0], weight*self.weight_acc, delay)
-                    bias_balance = -(bias_sign - 1) if biases is not None else 1
-                    weight_sum = -weight_sum + bias_balance                    
-                    for _ in range(int(abs(weight_sum))):
-                        trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], np.sign(weight_sum)*self.weight_acc, trigger_delay)
-                    weight_rest = weight_sum - int(weight_sum)
-                    trigger_block.output_neurons[output_channel].connect_to(relco.input_neurons[0], weight_rest*self.weight_acc, trigger_delay)
-                    trigger_block.rectifier_neurons[0].connect_to(relco.neuron("calc"), 2**6*251, trigger_delay)
+                        assert len(block_patch.neurons) == patch_weights.shape[0]
+                        block_patch.connect_to(relco_block, patch_weights*self.weight_acc)
+#                         print(block_patch.neurons, patch_weights)
+#                         ipdb.set_trace()
+                    weight_sum = -sum(patch_weights) - np.sign(biases[output_channel]) + 1
+                    clipped = np.clip(weight_sum, -1, 1)
+                    self.sync_neurons[0].connect_to(self.output_neurons[-1], np.array(clipped)*self.weight_acc) # change to multiple sync neurons?
+                    while np.sum(weight_sum - clipped) != 0:
+                        weight_sum = weight_sum - clipped
+                        clipped = np.clip(weight_sum, -1, 1)
+                        self.sync_neurons[0].connect_to(self.output_neurons[-1], np.array(clipped)*self.weight_acc)
+                    
+        # create all neurons converted from units and create self-inhibiting group connection
+        
+        layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
+        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 0, 0)
+        self.blocks += [layer_neuron_block]
 
 
 class MaxPool2D(Layer):

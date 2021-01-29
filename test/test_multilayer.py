@@ -22,7 +22,7 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(l2_output_dim) - 0.5) / 2
         inputs = np.random.rand(*input_dims) / 2
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Dense(weights=weights1, biases=biases1),
             layers.Dense(weights=weights2, biases=biases2),
@@ -41,7 +41,7 @@ class TestMultiLayer(unittest.TestCase):
         model[2].bias = nn.Parameter(torch.tensor(q_biases2))
         model_output = model(torch.tensor(q_inputs).reshape(input_dims[0],-1)).detach().numpy()
         
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(combinations)
@@ -66,7 +66,7 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(conv_out_dim2)-0.5) / 2
         inputs = np.random.rand(*input_dims) / 2
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights1, biases=biases1),
             layers.Conv2D(weights=weights2, biases=biases2),
@@ -85,7 +85,7 @@ class TestMultiLayer(unittest.TestCase):
         model[2].bias = nn.Parameter(torch.tensor(q_biases2))
         model_output = model(torch.tensor(q_inputs)).detach().numpy()
 
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         print(output_combinations)
@@ -103,12 +103,12 @@ class TestMultiLayer(unittest.TestCase):
         np.random.seed(seed=27)
         inputs = np.random.rand(*input_dims) / 2
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.MaxPool2D(kernel_size=kernel_size),
             layers.MaxPool2D(kernel_size=kernel_size),
         ])
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
 
         model = nn.Sequential(
             nn.MaxPool2d(kernel_size=kernel_size),
@@ -137,7 +137,7 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(fc_out_dim)-0.5) / 2
         inputs = np.random.rand(*input_dims) / 3
         
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights1, biases=biases1),
             layers.Dense(weights=weights2, biases=biases2),
@@ -155,7 +155,7 @@ class TestMultiLayer(unittest.TestCase):
         model[3].bias = nn.Parameter(torch.tensor(q_biases2))
         model_output = model(torch.tensor(q_inputs)).detach().numpy()
 
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         for (out, ideal) in output_combinations:
@@ -177,7 +177,7 @@ class TestMultiLayer(unittest.TestCase):
         biases1 = (np.random.rand(weight_dims[0])-0.5) / 3
         biases2 = (np.random.rand(weight_dims2[0])-0.5) / 3 
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights1, biases=biases1),
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
@@ -203,7 +203,7 @@ class TestMultiLayer(unittest.TestCase):
         model[4].weight = nn.Parameter(torch.tensor(quantized_weights2))
         model[4].bias = nn.Parameter(torch.tensor(quantized_biases2))
         model_output = model(torch.tensor(quantized_values)).detach().numpy()
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
@@ -229,7 +229,7 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(weight_dims2[0])-0.5)
         inputs = np.random.rand(*input_dims) / 2
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights, biases=biases),
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
@@ -246,7 +246,7 @@ class TestMultiLayer(unittest.TestCase):
         model[4].weight = nn.Parameter(torch.tensor(weights2))
         model[4].bias = nn.Parameter(torch.tensor(biases2))
         model_output = model(torch.tensor(inputs)).squeeze().detach().numpy()
-        loihi_output = loihi_model(inputs, t_max)
+        loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
@@ -270,7 +270,7 @@ class TestMultiLayer(unittest.TestCase):
         biases2 = (np.random.rand(weight_dims2[0])-0.5) / 3 
         biases3 = (np.random.rand(weight_dims3[0])-0.5) / 3
 
-        loihi_model = quartz.Network([
+        loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
             layers.Conv2D(weights=weights1, biases=biases1),
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
@@ -295,7 +295,7 @@ class TestMultiLayer(unittest.TestCase):
         model[8].weight = nn.Parameter(torch.tensor(weights3))
         model[8].bias = nn.Parameter(torch.tensor(biases3))
         model_output = model(torch.tensor(quantized_values)).detach().numpy()
-        loihi_output = loihi_model(values, t_max)
+        loihi_output = loihi_model(values)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
