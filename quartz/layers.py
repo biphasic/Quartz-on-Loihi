@@ -189,24 +189,27 @@ class Conv2D(Layer):
                     self.blocks += [relco_block]
 
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
-                        block_patch = Block(neurons=list(input_neurons[patches[input_channel,i,:,:].ravel()]))
+                        receptive_field = input_neurons[patches[input_channel,i,:,:].ravel()]
+                        mask = receptive_field != 0
+                        block_patch = Block(neurons=list(receptive_field[mask]))
                         prev_layer.blocks += [block_patch]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
-                        assert len(block_patch.neurons) == patch_weights.shape[0]
-                        block_patch.connect_to(relco_block, patch_weights*self.weight_acc)
-                        weight_sums[output_channel, i] += -sum(patch_weights) - np.sign(biases[output_channel])
+                        patch_weight_selection = patch_weights[mask]
+#                         ipdb.set_trace()
+                        assert len(block_patch.neurons) == patch_weight_selection.shape[0]
+                        block_patch.connect_to(relco_block, patch_weight_selection*self.weight_acc)
+                        weight_sums[output_channel, i] += -sum(patch_weight_selection) - np.sign(biases[output_channel])
 #                         print(block_patch.neurons)
         
-        print(weight_sums)
-        weight_sums = weight_sums.flatten() + 1
-#         weight_sums = np.array(weight_sums).reshape(output_channels, *side_lengths, input_channels)
-#         ipdb.set_trace()
+#         print(weight_sums)
         
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
-        
+
+        # sync counter weights
+        weight_sums = weight_sums.flatten() + 1
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         clipped = np.clip(weight_sums, -1, 1)
         sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc) # change to multiple sync neurons?
