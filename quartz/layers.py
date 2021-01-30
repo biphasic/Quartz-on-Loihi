@@ -199,7 +199,7 @@ class Conv2D(Layer):
                         source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.num_dendritic_accumulators-2)
                         source = self.bias_neurons[-1]
                         delay -= self.num_dendritic_accumulators-2+1
-                weight_sums[output_channel, :] -= bias_sign
+                    weight_sums[output_channel, :] -= bias_sign
                 
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     self.output_neurons += [Neuron(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), loihi_type=Neuron.acc)]
@@ -207,7 +207,7 @@ class Conv2D(Layer):
                     self.blocks += [relco_block]
                     
                     # connect bias to every neuron in output channel
-                    source.connect_to(self.output_neurons[-1], bias_sign*self.weight_acc, 0, delay)
+                    if bias != 0: source.connect_to(self.output_neurons[-1], bias_sign*self.weight_acc, 0, delay)
 
                     # connect output neurons from previous layer
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
@@ -249,7 +249,7 @@ class MaxPool2D(Layer):
         self.kernel_size = kernel_size
         self.stride = stride
 
-    def connect_from(self, prev_layer):
+    def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
@@ -259,17 +259,14 @@ class MaxPool2D(Layer):
         self.output_dims[1] = int(self.output_dims[1]/self.kernel_size[0])
         self.output_dims[2] = int(self.output_dims[2]/self.kernel_size[1])
         
-        trigger_block = quartz.blocks.WTA(name=self.name+"trigger:", type=Block.trigger, parent_layer=self)
-        trigger_block_bias = quartz.blocks.WTA(name=self.name+"rectifier:", type=Block.trigger, parent_layer=self)
-        trigger_block.rectifier_neurons += [trigger_block.neurons[0]]
-        trigger_block_bias.output_neurons += [trigger_block_bias.neurons[0]]
-        self.blocks += [trigger_block, trigger_block_bias]
-        prev_layer.trigger_blocks()[0].rectifier_neurons[0].connect_to(trigger_block.input_neurons[0], self.weight_e)
-        trigger_index = 1 if isinstance(prev_layer, (quartz.layers.InputLayer, quartz.layers.MaxPool2D)) else 0
-        prev_layer.trigger_blocks()[trigger_index].output_neurons[0].connect_to(trigger_block_bias.input_neurons[0], self.weight_e)
+        # create and connect support neurons
+        self.sync_neurons = [Neuron(name=self.name+"sync:", type=Neuron.sync)]
+        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier)]
+        prev_layer.sync_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
+        prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_e)
         
-        input_blocks = np.array(prev_layer.output_blocks())
-        indices = np.arange(len(input_blocks)).reshape(prev_layer.output_dims)
+        input_neurons = np.array(prev_layer.output_neurons)
+        indices = np.arange(len(input_neurons)).reshape(prev_layer.output_dims)
         for output_channel in range(output_channels): # no of output channels is most outer loop
             patches = image.extract_patches_2d(indices[output_channel,:,:], (self.kernel_size)) # extract patches with stride 1
             patches = np.stack(patches)
@@ -278,13 +275,22 @@ class MaxPool2D(Layer):
             # stride patches
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *self.kernel_size, patches.shape[-1]) 
             for i in range(int(np.product(self.output_dims[1:]))): # loop through all units in the output channel
-                block_patch = input_blocks[patches[i,:,:,:].ravel()]
-                maxpool = quartz.blocks.WTA(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i),
-                                                type=Block.output, parent_layer=self)
-                maxpool.output_neurons += [maxpool.neurons[0]]
-                for block in block_patch:
-                    for neuron in block.output_neurons:
-                        neuron.connect_to(maxpool.input_neurons[0], self.weight_e)
-                        maxpool.input_neurons[0].connect_to(neuron, -64*255)
-                self.blocks += [maxpool]
+                self.output_neurons += [Neuron(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.pulse)]
+                wta_block = Block(neurons=[self.output_neurons[-1]], name=self.name+"wta-block-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i))
+                self.blocks += [wta_block]
 
+                block_patch = Block(neurons=list(input_neurons[patches[i,:,:,:].ravel()]))
+                prev_layer.blocks += [block_patch]
+                block_patch.connect_to(wta_block, np.array([self.weight_e]))
+
+#                 maxpool.output_neurons += [maxpool.neurons[0]]
+#                 for block in block_patch:
+#                     for neuron in block.output_neurons:
+#                         neuron.connect_to(maxpool.input_neurons[0], self.weight_e)
+#                         maxpool.input_neurons[0].connect_to(neuron, -64*255)
+#                 self.blocks += [maxpool]
+
+        # recurring self-inhibitory connection
+        layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
+        layer_neuron_block.connect_to(layer_neuron_block, -8.1*self.weight_e*np.eye(len(self.output_neurons)))
+        self.blocks += [layer_neuron_block]
