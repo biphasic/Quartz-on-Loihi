@@ -43,13 +43,14 @@ class TestLayers(unittest.TestCase):
 
 
     @parameterized.expand([
-        (( 1, 3,8,8), (  5, 3,2,2), 1, 1),
-        (( 1, 4,8,8), (  4, 1,3,3), 1, 4), # depthwise
-        (( 1, 6,4,4), (  6, 2,3,3), 0, 3), # grouped
-        (( 5, 3,8,8), (  5, 3,1,1), 0, 1), # pointwise
-        ((50,10,5,5), (5,10,5,5), 0, 1),
+        (( 1, 3,8,8), (5, 3,2,2), 1, 1, 1), # padding
+        (( 1, 3,7,7), (5, 3,3,3), 2, 0, 1), # stride
+        (( 1, 4,8,8), (4, 1,3,3), 1, 1, 4), # depthwise
+        (( 1, 6,4,4), (6, 2,3,3), 1, 0, 3), # grouped
+        (( 5, 3,8,8), (5, 3,1,1), 1, 0, 1), # pointwise
+        ((50,10,5,5), (5,10,5,5), 1, 0, 1), # batch
     ])
-    def test_conv2d(self, input_dims, weight_dims, padding, groups):
+    def test_conv2d(self, input_dims, weight_dims, stride, padding, groups):
         t_max = 2**8
         kernel_size = weight_dims[2:]
         weights = (np.random.rand(*weight_dims)-0.5) / 3
@@ -58,11 +59,11 @@ class TestLayers(unittest.TestCase):
 
         loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
-            layers.Conv2D(weights=weights, biases=biases, padding=padding, groups=groups),
+            layers.Conv2D(weights=weights, biases=biases, stride=stride, padding=padding, groups=groups),
         ])
 
         model = nn.Sequential(
-            nn.Conv2d(in_channels=weight_dims[1]*groups, out_channels=weight_dims[0], kernel_size=kernel_size, padding=padding, groups=groups), 
+            nn.Conv2d(in_channels=weight_dims[1]*groups, out_channels=weight_dims[0], kernel_size=kernel_size, stride=stride, padding=padding, groups=groups), 
             nn.ReLU()
         )
         q_weights, q_biases, q_inputs = quartz.utils.quantize_values(weights, biases, inputs, loihi_model.layers[1].weight_acc, t_max)

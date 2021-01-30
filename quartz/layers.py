@@ -182,6 +182,10 @@ class Conv2D(Layer):
             for output_channel in range(g*n_groups_out,(g+1)*n_groups_out): # loop over output channels in one group
                 patches = [image.extract_patches_2d(indices[input_channel,:,:], (kernel_size)) for input_channel in range(input_channels)]
                 patches = np.stack(patches)
+                # stride patches
+                patches_side_length = int(np.sqrt(patches.shape[1]))
+                patches = patches.reshape(-1, patches_side_length, patches_side_length, *kernel_size) # align patches as a rectangle
+                patches = patches[:, ::self.stride[0],::self.stride[1],:,:].reshape(patches.shape[0], -1, *kernel_size) 
                 assert np.product(side_lengths) == patches.shape[1]
                 
                 # create bias per output channel
@@ -216,14 +220,13 @@ class Conv2D(Layer):
                         assert len(block_patch.neurons) == patch_weight_selection.shape[0]
                         block_patch.connect_to(relco_block, patch_weight_selection*self.weight_acc)
                         weight_sums[output_channel, i] -= sum(patch_weight_selection)
-#                         print(block_patch.neurons)
                 
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
 
-        # sync counter weights
+        # connect sync counter weights
         weight_sums = weight_sums.flatten() + 1
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         clipped = np.clip(weight_sums, -1, 1)
