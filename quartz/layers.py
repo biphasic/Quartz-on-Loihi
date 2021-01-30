@@ -154,6 +154,7 @@ class Conv2D(Layer):
         assert weights.shape[1]*self.groups == prev_layer.output_dims[0]
         if biases is not None: assert weights.shape[0] == biases.shape[0]
         output_channels, input_channels, *kernel_size = self.weights.shape
+        input_channels *= self.groups
         side_lengths = (int((prev_layer.output_dims[1] - kernel_size[0] + 2*self.padding[0]) / self.stride[0] + 1), 
                         int((prev_layer.output_dims[2] - kernel_size[1] + 2*self.padding[1]) / self.stride[1] + 1))
         self.output_dims = (output_channels, *side_lengths)
@@ -171,7 +172,7 @@ class Conv2D(Layer):
         indices = np.arange(len(input_neurons.ravel())).reshape(input_neurons.shape)
         input_neurons = input_neurons.ravel()
         n_groups_out = output_channels/self.groups
-        n_groups_in = int(input_channels)#/self.groups
+        n_groups_in = input_channels//self.groups
         assert isinstance(n_groups_out, int) or n_groups_out.is_integer() # and n_groups_in.is_integer()
         n_groups_out = int(n_groups_out)
 
@@ -183,7 +184,7 @@ class Conv2D(Layer):
                 patches = np.stack(patches)
                 assert np.product(side_lengths) == patches.shape[1]
                 
-                # create bias
+                # create bias per output channel
                 bias = biases[output_channel]
                 if bias != 0:
                     bias_sign = np.sign(bias)
@@ -201,7 +202,7 @@ class Conv2D(Layer):
                     relco_block = Block(neurons=[self.output_neurons[-1]], name=self.name+"relco-block-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i))
                     self.blocks += [relco_block]
                     
-                    # connect bias
+                    # connect bias to every neuron in output channel
                     source.connect_to(self.output_neurons[-1], bias_sign*self.weight_acc, 0, delay)
 
                     # connect output neurons from previous layer
@@ -214,7 +215,7 @@ class Conv2D(Layer):
                         patch_weight_selection = patch_weights[mask]
                         assert len(block_patch.neurons) == patch_weight_selection.shape[0]
                         block_patch.connect_to(relco_block, patch_weight_selection*self.weight_acc)
-                        weight_sums[output_channel, i] += -sum(patch_weight_selection)
+                        weight_sums[output_channel, i] -= sum(patch_weight_selection)
 #                         print(block_patch.neurons)
                 
         # recurring self-inhibitory connection
@@ -223,8 +224,7 @@ class Conv2D(Layer):
         self.blocks += [layer_neuron_block]
 
         # sync counter weights
-        #for 
-        weight_sums = weight_sums.flatten() + 1# - np.sign(biases) + 1
+        weight_sums = weight_sums.flatten() + 1
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         clipped = np.clip(weight_sums, -1, 1)
         sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc) # change to multiple sync neurons?
