@@ -169,16 +169,20 @@ class Network:
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
                     weights = weights.round()
-                    if np.sum(proto_map[proto_map==mask]) == np.sum(mask):
+                    if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
+#                         print("edge case")
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-                    block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, #connectionMask=mask,
+                    if len(block.neurons) == 1: # fixes issue with broadcasting the connectionMask when only 1 neuron
+                        mask = mask.reshape(-1, 1)
+                    block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             for neuron in layer.neurons():
                 for target, weight, exponent, delay in neuron.synapses:
                     if weight != 0:
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
+#                         print(neuron, target, weight)
         return net
 
     def add_input_spikes(self, spike_list):

@@ -181,13 +181,30 @@ class Conv2D(Layer):
             for output_channel in range(g*n_groups_out,(g+1)*n_groups_out): # loop over output channels in one group
                 patches = [image.extract_patches_2d(indices[input_channel,:,:], (kernel_size)) for input_channel in range(input_channels)]
                 patches = np.stack(patches)
-                assert np.product(side_lengths) == patches.shape[1]                
+                assert np.product(side_lengths) == patches.shape[1]
+                
+                # create bias
+                bias = biases[output_channel]
+                if bias != 0:
+                    bias_sign = np.sign(bias)
+                    delay = round((1-abs(bias))*t_max)
+                    source = prev_layer.sync_neurons[0]
+                    while delay > (self.num_dendritic_accumulators-2):
+                        self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(output_channel))]
+                        source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.num_dendritic_accumulators-2)
+                        source = self.bias_neurons[-1]
+                        delay -= self.num_dendritic_accumulators-2+1
+                weight_sums[output_channel, :] -= bias_sign
                 
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
                     self.output_neurons += [Neuron(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), loihi_type=Neuron.acc)]
                     relco_block = Block(neurons=[self.output_neurons[-1]], name=self.name+"relco-block-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i))
                     self.blocks += [relco_block]
+                    
+                    # connect bias
+                    source.connect_to(self.output_neurons[-1], bias_sign*self.weight_acc, 0, delay)
 
+                    # connect output neurons from previous layer
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         receptive_field = input_neurons[patches[input_channel,i,:,:].ravel()]
                         mask = receptive_field != 0
@@ -195,21 +212,19 @@ class Conv2D(Layer):
                         prev_layer.blocks += [block_patch]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
                         patch_weight_selection = patch_weights[mask]
-#                         ipdb.set_trace()
                         assert len(block_patch.neurons) == patch_weight_selection.shape[0]
                         block_patch.connect_to(relco_block, patch_weight_selection*self.weight_acc)
-                        weight_sums[output_channel, i] += -sum(patch_weight_selection) - np.sign(biases[output_channel])
+                        weight_sums[output_channel, i] += -sum(patch_weight_selection)
 #                         print(block_patch.neurons)
-        
-#         print(weight_sums)
-        
+                
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
 
         # sync counter weights
-        weight_sums = weight_sums.flatten() + 1
+        #for 
+        weight_sums = weight_sums.flatten() + 1# - np.sign(biases) + 1
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         clipped = np.clip(weight_sums, -1, 1)
         sync_block.connect_to(layer_neuron_block, np.array(clipped)*self.weight_acc) # change to multiple sync neurons?
