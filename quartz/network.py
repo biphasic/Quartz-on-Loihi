@@ -74,7 +74,7 @@ class Network:
         # add inputs
         self.add_input_spikes(input_spike_list)
         # compile the whole thing and return board
-        print("{} Compiling now...".format(datetime.datetime.now()))
+        print("{} Compiling model...".format(datetime.datetime.now()))
         return nx.N2Compiler().compile(net)
 
     def n_compartments(self):
@@ -181,7 +181,6 @@ class Network:
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)
                         loihi_block.addCompartments(target.loihi_neuron)
                         target.loihi_block = loihi_block
-                    elif isinstance(target.loihi_block, nxsdk.net.groups.SpikeInputPortGroup): continue
                     block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             for neuron in layer.neurons():

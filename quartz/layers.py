@@ -3,7 +3,6 @@ from quartz.blocks import Block
 import quartz
 from sklearn.feature_extraction import image
 import numpy as np
-import math
 import ipdb
 
 
@@ -92,7 +91,7 @@ class Dense(Layer):
         prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
-        # create all neurons converted from units and create self-inhibiting group connection
+        # create all output neurons and create self-inhibiting group connection
         self.output_neurons = [Neuron(name=self.name+"relco-n{0:3.0f}:".format(i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
@@ -168,6 +167,10 @@ class Conv2D(Layer):
         prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
+        # create all output neurons 
+        self.output_neurons = [Neuron(name=self.name+"relco-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.acc) 
+                               for output_channel in range(output_channels) for i in range(np.product(side_lengths))]
+
         input_neurons = prev_layer.output_neurons
         input_neurons = np.pad(np.array(input_neurons).reshape(*prev_layer.output_dims), 
                               ((0,0), self.padding, self.padding), 'constant', constant_values=(0))
@@ -177,10 +180,6 @@ class Conv2D(Layer):
         n_groups_in = input_channels//self.groups
         assert isinstance(n_groups_out, int) or n_groups_out.is_integer() # and n_groups_in.is_integer()
         n_groups_out = int(n_groups_out)
-
-        # create all output neurons 
-        self.output_neurons = [Neuron(name=self.name+"relco-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.acc) 
-                               for output_channel in range(output_channels) for i in range(np.product(side_lengths))]
 
         weight_sums = np.zeros((output_channels, np.product(side_lengths),))
         if biases is None: biases = np.zeros((output_channels))
@@ -267,6 +266,10 @@ class MaxPool2D(Layer):
         prev_layer.sync_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_e)
         
+        # create output neurons 
+        self.output_neurons += [Neuron(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.pulse)
+                               for output_channel in range(output_channels) for i in range(np.product(self.output_dims[1:]))]
+
         input_neurons = np.array(prev_layer.output_neurons)
         indices = np.arange(len(input_neurons)).reshape(prev_layer.output_dims)
         for output_channel in range(output_channels): # no of output channels is most outer loop
@@ -277,16 +280,11 @@ class MaxPool2D(Layer):
             # stride patches
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *self.kernel_size, patches.shape[-1]) 
             for i in range(int(np.product(self.output_dims[1:]))): # loop through all units in the output channel
-                self.output_neurons += [Neuron(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.pulse)]
-                wta_block = Block(neurons=[self.output_neurons[-1]], name=self.name+"wta-block-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i))
-                self.blocks += [wta_block]
-
                 block_patch = Block(neurons=list(input_neurons[patches[i,:,:,:].ravel()]))
                 prev_layer.blocks += [block_patch]
-                block_patch.connect_to(wta_block, np.array([self.weight_e]))
-                wta_block.connect_to(block_patch, np.array([-self.weight_acc]))
+                block_patch.connect_to(self.output_neurons[output_channel*np.product(self.output_dims[1:])+i], np.array([self.weight_e]))
 
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -8.1*self.weight_e*np.eye(len(self.output_neurons)))
+        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6)
         self.blocks += [layer_neuron_block]
