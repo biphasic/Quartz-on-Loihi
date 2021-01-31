@@ -93,7 +93,7 @@ class Dense(Layer):
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
         # create all neurons converted from units and create self-inhibiting group connection
-        self.output_neurons = [Neuron(name=self.name+"relco-n{1:3.0f}:".format(self.layer_n, i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
+        self.output_neurons = [Neuron(name=self.name+"relco-n{0:3.0f}:".format(i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
@@ -178,6 +178,10 @@ class Conv2D(Layer):
         assert isinstance(n_groups_out, int) or n_groups_out.is_integer() # and n_groups_in.is_integer()
         n_groups_out = int(n_groups_out)
 
+        # create all output neurons 
+        self.output_neurons = [Neuron(name=self.name+"relco-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.acc) 
+                               for output_channel in range(output_channels) for i in range(np.product(side_lengths))]
+
         weight_sums = np.zeros((output_channels, np.product(side_lengths),))
         if biases is None: biases = np.zeros((output_channels))
         for g in range(self.groups): # split feature maps into groups
@@ -204,12 +208,8 @@ class Conv2D(Layer):
                     weight_sums[output_channel, :] -= bias_sign
                 
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
-                    self.output_neurons += [Neuron(name=self.name+"relco-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i), loihi_type=Neuron.acc)]
-                    relco_block = Block(neurons=[self.output_neurons[-1]], name=self.name+"relco-block-c{1:3.0f}-n{2:3.0f}:".format(self.layer_n, output_channel, i))
-                    self.blocks += [relco_block]
-                    
                     # connect bias to every neuron in output channel
-                    if bias != 0: source.connect_to(self.output_neurons[-1], bias_sign*self.weight_acc, 0, delay)
+                    if bias != 0: source.connect_to(self.output_neurons[output_channel*np.product(side_lengths)+i], bias_sign*self.weight_acc, 0, delay)
 
                     # connect output neurons from previous layer
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
@@ -220,9 +220,9 @@ class Conv2D(Layer):
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
                         patch_weight_selection = patch_weights[mask]
                         assert len(block_patch.neurons) == patch_weight_selection.shape[0]
-                        block_patch.connect_to(relco_block, patch_weight_selection*self.weight_acc)
+                        block_patch.connect_to(self.output_neurons[output_channel*np.product(side_lengths)+i], patch_weight_selection*self.weight_acc)
                         weight_sums[output_channel, i] -= sum(patch_weight_selection)
-                
+
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
@@ -284,13 +284,7 @@ class MaxPool2D(Layer):
                 block_patch = Block(neurons=list(input_neurons[patches[i,:,:,:].ravel()]))
                 prev_layer.blocks += [block_patch]
                 block_patch.connect_to(wta_block, np.array([self.weight_e]))
-
-#                 maxpool.output_neurons += [maxpool.neurons[0]]
-#                 for block in block_patch:
-#                     for neuron in block.output_neurons:
-#                         neuron.connect_to(maxpool.input_neurons[0], self.weight_e)
-#                         maxpool.input_neurons[0].connect_to(neuron, -64*255)
-#                 self.blocks += [maxpool]
+                wta_block.connect_to(block_patch, np.array([-self.weight_acc]))
 
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")

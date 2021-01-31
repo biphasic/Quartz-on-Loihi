@@ -80,12 +80,12 @@ class TestLayers(unittest.TestCase):
 
             
     @parameterized.expand([
-        ((1,1,8,8), (3,1,3,3)),
-        ((50,3,6,6), (6,3,5,5)),
+        ((1,1,8,8), (2,2)),
+        ((50,3,6,6), (3,3)),
     ])
-    def test_maxpool2d(self, input_dims, weight_dims):
+    def test_maxpool2d(self, input_dims, kernel_size):
+        # caution: kernel_size =< 3 when directly after InputLayer, as input generators cannot be deactivated by inhibitory connection from MaxPool layer
         t_max = 2**7
-        kernel_size = [2,2]
         np.random.seed(seed=27)
         inputs = np.random.rand(*input_dims) / 2
 

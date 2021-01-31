@@ -105,6 +105,7 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
+        self.compartments_on_core = np.zeros((128))
         n_compartments_per_core = 1024
         n_incoming_axons_per_core = 4096
         n_outgoing_axons_per_core = 4096
@@ -174,8 +175,13 @@ class Network:
                     if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-                    if len(block.neurons) == 1: # fixes issue with broadcasting the connectionMask when only 1 neuron
+                    if len(block.neurons) == 1: # fixes issue with broadcasting the connectionMask when there is only 1 source neuron
                         mask = mask.reshape(-1, 1)
+                    if isinstance(target, quartz.neuron.Neuron) and not hasattr(target, 'loihi_block'): # an nxSDK compGroup can only connect to another group
+                        loihi_block = net.createCompartmentGroup(size=0, name=target.name)
+                        loihi_block.addCompartments(target.loihi_neuron)
+                        target.loihi_block = loihi_block
+                    elif isinstance(target.loihi_block, nxsdk.net.groups.SpikeInputPortGroup): continue
                     block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
             for neuron in layer.neurons():
