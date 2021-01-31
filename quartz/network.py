@@ -125,8 +125,8 @@ class Network:
         
     def create_compartments(self):
         net = nx.NxNet()
-        measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
-        layer_measurements = [nx.ProbeParameter.SPIKE]
+        full_measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
+        spike_counter = [nx.ProbeParameter.SPIKE]
 
         # input layer uses spike generators instead of neurons
         self.input_spike_gen = net.createSpikeGenProcess(numPorts=len(self.layers[0].output_neurons))
@@ -139,7 +139,7 @@ class Network:
             for neuron in block.neurons:
                 block_group.addSpikeInputPort(neuron.loihi_neuron)
             block.loihi_block = block_group
-        
+
         # other layers
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.neurons():
@@ -147,14 +147,16 @@ class Network:
                 pulse_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, compartmentCurrentDecay=4095)
                 loihi_neuron = net.createCompartment(acc_proto) if neuron.loihi_type == Neuron.acc else net.createCompartment(pulse_proto)
                 neuron.loihi_neuron = loihi_neuron
-                if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(measurements))
+                if neuron.monitor:
+                    neuron.probe.set_loihi_probe(loihi_neuron.probe(full_measurements))
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block_group.addCompartments([neuron.loihi_neuron for neuron in block.neurons])
                 block.loihi_block = block_group
-                if block.monitor: block.probe.set_loihi_probe(block_group.probe(measurements))
+                if block.monitor:
+                    block.probe.set_loihi_probe(block_group.probe(full_measurements))
             if layer.monitor:
-                layer.probe.set_loihi_probe([neuron.loihi_neuron.probe(layer_measurements)[0] for neuron in layer.neurons()])
+                layer.probe.set_loihi_probe([neuron.loihi_neuron.probe(spike_counter)[0] for neuron in layer.neurons_without_bias()])
         return net
 
 #     @profile # uncomment to profile model building
@@ -170,7 +172,6 @@ class Network:
                     proto_map[weights<0] = 1
                     weights = weights.round()
                     if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
-#                         print("edge case")
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
                     if len(block.neurons) == 1: # fixes issue with broadcasting the connectionMask when only 1 neuron
@@ -182,7 +183,6 @@ class Network:
                     if weight != 0:
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
-#                         print(neuron, target, weight)
         return net
 
     def add_input_spikes(self, spike_list):

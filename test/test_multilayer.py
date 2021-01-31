@@ -88,7 +88,7 @@ class TestMultiLayer(unittest.TestCase):
         loihi_output = loihi_model(inputs)
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
-        print(output_combinations)
+#         print(output_combinations)
         for (out, ideal) in output_combinations:
             if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05)
             else: print("reduce weight or input value")

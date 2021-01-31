@@ -26,7 +26,9 @@ class Layer:
 
     
     def neurons(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons + self.bias_neurons
-        
+    
+    def neurons_without_bias(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons
+
     def names(self): return [neuron.name for neuron in self.neurons()]
     
     def n_compartments(self):
