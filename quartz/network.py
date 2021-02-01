@@ -32,7 +32,8 @@ class Network:
         # assign vth_mants according to t_max
         self.check_vth_mants()
         
-    def __call__(self, inputs, profiling=False, logging=False, verbose=False, partition='loihi'):
+    def __call__(self, inputs, profiling=False, logging=False, partition='loihi'):
+        np.set_printoptions(suppress=True)
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
         n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
@@ -40,18 +41,15 @@ class Network:
         run_time = self.steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image)
         self.data = []
-        if not logging:
-            set_verbosity(LoggingLevel.ERROR)
-        self.verbose = verbose
+        self.logging = logging
+        if not logging: set_verbosity(LoggingLevel.ERROR)
         # monitor output layer and setup probes
-        if not profiling:
-            output_probe = quartz.probe(self.layers[-1])
+        if not profiling: output_probe = quartz.probe(self.layers[-1])
         self.set_probe_t_max()
         # create and connect compartments and add input spikes
         board = self.build_model(input_spike_list)
         # use reset snip in case of multiple samples
-        if batch_size > 1:
-            board = self.add_snips(board)
+        if batch_size > 1: board = self.add_snips(board)
         # execute
         self.run_on_loihi(board, run_time, profiling, partition)
         if profiling:
@@ -61,8 +59,10 @@ class Network:
             output_array = output_probe.output()[1]
             last_layer = self.layers[-1]
             if isinstance(last_layer, quartz.layers.Dense):
-                if last_layer.rectifying: # False: # 
+                try:
                     output_array = output_array.reshape(last_layer.output_dims, batch_size).T
+                except:
+                    pass
             else:
                 output_array = output_array.reshape(*last_layer.output_dims, batch_size)
                 output_array = np.transpose(output_array, (3,0,1,2))
@@ -79,7 +79,7 @@ class Network:
         # add inputs
         self.add_input_spikes(input_spike_list)
         # compile the whole thing and return board
-        if self.verbose: print("{} Compiling model...".format(datetime.datetime.now()))
+        if self.logging: print("{} Compiling model...".format(datetime.datetime.now()))
         return nx.N2Compiler().compile(net)
 
     def n_output_compartments(self):
@@ -171,7 +171,7 @@ class Network:
 
 #     @profile # uncomment to profile model building
     def connect_blocks(self, net):
-        if self.verbose: print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
+        if self.logging: print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
             for block in layer.blocks:
                 for target, weights, exponent, delays in block.connections:
