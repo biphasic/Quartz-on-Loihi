@@ -14,7 +14,7 @@ class TestMultiLayer(unittest.TestCase):
         ((50,1,1,10,), 84, 10),
     ])
     def test_2fc(self, input_dims, l1_output_dim, l2_output_dim):
-        t_max = 2**8
+        t_max = 2**7
         np.random.seed(seed=48)
         weights1 = (np.random.rand(l1_output_dim, np.product(input_dims[1:])) - 0.5) / 2
         biases1 = (np.random.rand(l1_output_dim) - 0.5) / 2
@@ -55,7 +55,8 @@ class TestMultiLayer(unittest.TestCase):
         ((100,1,7,7), (6,1,5,5), (100,6,3,3)),
     ])
     def test_2conv2d(self, input_dims, conv_weight_dims1, conv_weight_dims2):
-        t_max = 2**8
+        np.random.seed(seed=48)
+        t_max = 2**7
         conv_kernel_size1 = conv_weight_dims1[2:]
         conv_kernel_size2 = conv_weight_dims2[2:]
         conv_out_dim1 = conv_weight_dims1[0]
@@ -128,11 +129,12 @@ class TestMultiLayer(unittest.TestCase):
 
     @parameterized.expand([
         ((1,6,3,3), (100,6,3,3), 10),
-        ((100,8,5,5), (80,8,5,5), 20),
+#         ((100,8,5,5), (80,8,5,5), 20),
     ])
     def test_conv_fc(self, input_dims, conv_weight_dims, fc_out_dim):
-        t_max = 2**8
+        t_max = 2**7
         conv_out_dim = conv_weight_dims[0]
+        np.random.seed(seed=27)
         
         weights1 = (np.random.rand(*conv_weight_dims)-0.5) / 4
         biases1 = (np.random.rand(conv_out_dim)-0.5) / 2
@@ -171,11 +173,11 @@ class TestMultiLayer(unittest.TestCase):
         ((100,1,14,14), (3,1,3,3), (5,3,3,3)),
     ])
     def test_2convpool(self, input_dims, weight_dims, weight_dims2):
-        t_max = 2**8
+        t_max = 2**7
         pooling_kernel_size = [2,2]
         pooling_stride = 2
         np.random.seed(seed=44)
-        np.set_printoptions(suppress=True)
+
         weights1 = (np.random.rand(*weight_dims)-0.5) / 3 # np.zeros(weight_dims) #
         weights2 = (np.random.rand(*weight_dims2)-0.5) / 3 # np.zeros(weight_dims) #
         biases1 = (np.random.rand(weight_dims[0])-0.5) / 3
@@ -219,12 +221,11 @@ class TestMultiLayer(unittest.TestCase):
         ((100,1,16,16), (2,1,3,3), (4,2,3,3)),
     ])
     def test_convpool_conv(self, input_dims, weight_dims, weight_dims2):
-        t_max = 2**8
+        t_max = 2**7
         pooling_kernel_size = [2,2]
         pooling_stride = 2
-
         np.random.seed(seed=44)
-        np.set_printoptions(suppress=True)
+
         weights = (np.random.rand(*weight_dims)-0.5) / 2 # np.zeros(weight_dims) #
         weights2 = (np.random.rand(*weight_dims2)-0.5) / 2 # np.zeros(weight_dims) #
         biases = (np.random.rand(weight_dims[0])-0.5)
@@ -264,7 +265,7 @@ class TestMultiLayer(unittest.TestCase):
         t_max = 2**8
         pooling_kernel_size = [2,2]
         np.random.seed(seed=44)
-        np.set_printoptions(suppress=True)
+
         weights1 = (np.random.rand(*weight_dims)-0.5) # np.zeros(weight_dims) #
         weights2 = (np.random.rand(*weight_dims2)-0.5) # np.zeros(weight_dims) #
         weights3 = (np.random.rand(*weight_dims3)-0.5) # np.zeros(weight_dims) #

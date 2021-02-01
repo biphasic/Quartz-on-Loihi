@@ -110,14 +110,24 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
-        self.compartment_profiles_on_core = np.zeros((128))
+        # pulse and acc neuron types on every core + bias neurons with many different axon delays
+        self.compartment_profiles_on_core = np.ones((128)) * 2 
         n_compartments_per_core = 1024
         n_incoming_axons_per_core = 4096
         n_outgoing_axons_per_core = 4096
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-            max_comps_per_core = 100
-            for neuron in layer.neurons():
+            max_profiles_per_core = 32
+            for neuron in layer.bias_neurons:
+                if self.compartment_profiles_on_core[core_id] + 1 >= max_profiles_per_core:
+                    core_id += 1
+                neuron.core_id = core_id
+                self.compartment_profiles_on_core[core_id] += 1
+                self.compartments_on_core[core_id] += 1
+        core_id = 0
+        for i, layer in enumerate(self.layers[1:]):
+            max_comps_per_core = 100                
+            for neuron in layer.neurons_without_bias():
                 if core_id >= 127: 
                     print(self.core_ids)
                     print(self.compartments_on_core)
@@ -127,7 +137,7 @@ class Network:
                 self.core_ids[core_id] = i
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
-            core_id += 1
+#         print(self.compartment_profiles_on_core)
         
     def create_compartments(self):
         net = nx.NxNet()
@@ -163,8 +173,7 @@ class Network:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block_group.addCompartments([neuron.loihi_neuron for neuron in block.neurons])
                 block.loihi_block = block_group
-                if block.monitor:
-                    block.probe.set_loihi_probe(block_group.probe(full_measurements))
+                if block.monitor: block.probe.set_loihi_probe(block_group.probe(full_measurements))
             if layer.monitor:
                 layer.probe.set_loihi_probe([neuron.loihi_neuron.probe(spike_counter)[0] for neuron in layer.neurons_without_bias()])
         return net
