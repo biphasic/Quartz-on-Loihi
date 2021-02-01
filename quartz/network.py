@@ -110,13 +110,13 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
-        self.compartments_on_core = np.zeros((128))
+        self.compartment_profiles_on_core = np.zeros((128))
         n_compartments_per_core = 1024
         n_incoming_axons_per_core = 4096
         n_outgoing_axons_per_core = 4096
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-            max_comps_per_core = 130
+            max_comps_per_core = 100
             for neuron in layer.neurons():
                 if core_id >= 127: 
                     print(self.core_ids)
