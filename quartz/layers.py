@@ -199,13 +199,15 @@ class Conv2D(Layer):
                 bias = biases[output_channel]
                 if bias != 0:
                     bias_sign = np.sign(bias)
-                    delay = round((1-abs(bias))*t_max)
-                    source = prev_layer.sync_neurons[0]
-                    while delay > (self.num_dendritic_accumulators-2):
+                    delay = np.maximum(round((1-abs(bias))*t_max) - 1, 0)
+                    self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(output_channel))]
+                    source = self.bias_neurons[-1]
+                    prev_layer.sync_neurons[0].connect_to(source, self.weight_e)
+                    while delay > (self.max_axonal_delay):
                         self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(output_channel))]
-                        source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.num_dendritic_accumulators-2)
+                        source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.max_axonal_delay)
                         source = self.bias_neurons[-1]
-                        delay -= self.num_dendritic_accumulators-2+1
+                        delay -= self.max_axonal_delay+1
                     weight_sums[output_channel, :] -= bias_sign
                 
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel

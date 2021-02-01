@@ -155,7 +155,6 @@ class Network:
                 neuron.loihi_neuron = loihi_neuron
                 if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(full_measurements))
             for neuron in layer.bias_neurons:
-                assert len(neuron.synapses) == 1
                 bias_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, 
                                                      compartmentCurrentDecay=4095, tEpoch=63, axonDelay=neuron.synapses[0][3])
                 loihi_neuron = net.createCompartment(bias_proto)

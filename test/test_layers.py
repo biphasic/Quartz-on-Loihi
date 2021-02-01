@@ -18,7 +18,7 @@ class TestLayers(unittest.TestCase):
         t_max = 2**8
         np.random.seed(seed=35)
         weights = (np.random.rand(dim_output,np.product(dim_input[1:])) - 0.5) / 3
-        biases = (np.random.rand(dim_output) - 0.5) / 2 # np.zeros((dim_output)) # 
+        biases = (np.random.rand(dim_output) - 0.5) / 2
         inputs = np.random.rand(*dim_input) / 3
 
         loihi_model = quartz.Network(t_max=t_max, layers=[
@@ -30,7 +30,8 @@ class TestLayers(unittest.TestCase):
             nn.Linear(in_features=np.product(dim_input[1:]), out_features=dim_output), 
             nn.ReLU()
         )
-        q_weights, q_biases, q_inputs = quartz.utils.quantize_values(weights, biases, inputs, loihi_model.layers[1].weight_acc, t_max)
+        q_weights, q_biases = quartz.utils.quantize_parameters(weights, biases, loihi_model.layers[1].weight_acc, t_max)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         model[0].weight = torch.nn.Parameter(torch.tensor(q_weights))
         model[0].bias = torch.nn.Parameter(torch.tensor((q_biases)))
         model_output = model(torch.tensor(q_inputs.reshape(dim_input[0], -1))).detach().numpy()
@@ -54,7 +55,7 @@ class TestLayers(unittest.TestCase):
         t_max = 2**8
         kernel_size = weight_dims[2:]
         weights = (np.random.rand(*weight_dims)-0.5) / 3
-        biases = (np.random.rand(weight_dims[0])-0.5) / 2 # np.zeros((weight_dims[0])) # 
+        biases = (np.random.rand(weight_dims[0])-0.5) / 2
         inputs = np.random.rand(*input_dims) / 3
 
         loihi_model = quartz.Network(t_max, [
@@ -66,10 +67,11 @@ class TestLayers(unittest.TestCase):
             nn.Conv2d(in_channels=weight_dims[1]*groups, out_channels=weight_dims[0], kernel_size=kernel_size, stride=stride, padding=padding, groups=groups), 
             nn.ReLU()
         )
-        q_weights, q_biases, q_inputs = quartz.utils.quantize_values(weights, biases, inputs, loihi_model.layers[1].weight_acc, t_max)
+        q_weights, q_biases = quartz.utils.quantize_parameters(weights, biases, loihi_model.layers[1].weight_acc, t_max)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         model[0].weight = torch.nn.Parameter(torch.tensor(q_weights))
         model[0].bias = torch.nn.Parameter(torch.tensor(q_biases))
-        model_output = model(torch.tensor(q_inputs)).squeeze().detach().numpy()
+        model_output = model(torch.tensor(q_inputs)).detach().numpy()
         loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
@@ -95,7 +97,8 @@ class TestLayers(unittest.TestCase):
         loihi_output = loihi_model(inputs)
 
         model = nn.MaxPool2d(kernel_size=kernel_size)
-        model_output = model(torch.tensor((inputs*t_max).round()/t_max)).detach().numpy()
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
+        model_output = model(torch.tensor(q_inputs)).detach().numpy()
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
@@ -116,7 +119,7 @@ class TestLayers(unittest.TestCase):
         np.random.seed(seed=27)
         weights = (np.random.rand(*weight_dims)-0.5) / 4 # 
         biases = np.zeros((weight_dims[0])) 
-        inputs = np.random.rand(*input_dims) / 2 # np.ones((input_dims)) / 2 #
+        inputs = np.random.rand(*input_dims) / 2
 
         loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
@@ -124,7 +127,8 @@ class TestLayers(unittest.TestCase):
             layers.MaxPool2D(kernel_size=kernel_size)
         ])
 
-        q_weights, q_biases, q_inputs = quartz.utils.quantize_values(weights, biases, inputs, loihi_model.layers[1].weight_acc, t_max)
+        q_weights, q_biases = quartz.utils.quantize_parameters(weights, biases, loihi_model.layers[1].weight_acc, t_max)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         model = nn.Sequential(
             nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2]), nn.ReLU(),
             nn.MaxPool2d(kernel_size=kernel_size),

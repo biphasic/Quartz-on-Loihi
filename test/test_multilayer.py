@@ -33,8 +33,9 @@ class TestMultiLayer(unittest.TestCase):
             nn.Linear(in_features=l1_output_dim, out_features=l2_output_dim), nn.ReLU(),
         )
         
-        q_weights1, q_biases1, q_inputs = quartz.utils.quantize_values(weights1, biases1, inputs, loihi_model.layers[1].weight_acc, t_max)
-        q_weights2, q_biases2, q_inputs = quartz.utils.quantize_values(weights2, biases2, inputs, loihi_model.layers[2].weight_acc, t_max)
+        q_weights1, q_biases1 = quartz.utils.quantize_parameters(weights1, biases1, loihi_model.layers[1].weight_acc, t_max)
+        q_weights2, q_biases2 = quartz.utils.quantize_parameters(weights2, biases2, loihi_model.layers[2].weight_acc, t_max)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         model[0].weight = nn.Parameter(torch.tensor(q_weights1))
         model[0].bias = nn.Parameter(torch.tensor(q_biases1))
         model[2].weight = nn.Parameter(torch.tensor(q_weights2))
@@ -77,8 +78,9 @@ class TestMultiLayer(unittest.TestCase):
             nn.Conv2d(in_channels=conv_weight_dims2[1], out_channels=conv_weight_dims2[0], kernel_size=conv_kernel_size2), nn.ReLU(),
         )
         
-        q_weights1, q_biases1, q_inputs = quartz.utils.quantize_values(weights1, biases1, inputs, loihi_model.layers[1].weight_acc, t_max)
-        q_weights2, q_biases2, q_inputs = quartz.utils.quantize_values(weights2, biases2, inputs, loihi_model.layers[2].weight_acc, t_max)
+        q_weights1, q_biases1 = quartz.utils.quantize_parameters(weights1, biases1, loihi_model.layers[1].weight_acc, t_max)
+        q_weights2, q_biases2 = quartz.utils.quantize_parameters(weights2, biases2, loihi_model.layers[2].weight_acc, t_max)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         model[0].weight = nn.Parameter(torch.tensor(q_weights1))
         model[0].bias = nn.Parameter(torch.tensor(q_biases1))
         model[2].weight = nn.Parameter(torch.tensor(q_weights2))
@@ -114,7 +116,8 @@ class TestMultiLayer(unittest.TestCase):
             nn.MaxPool2d(kernel_size=kernel_size),
             nn.MaxPool2d(kernel_size=kernel_size),
         )
-        model_output = model(torch.tensor((inputs*t_max).round()/t_max)).detach().numpy()
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
+        model_output = model(torch.tensor(q_inputs)).detach().numpy()
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
@@ -147,8 +150,9 @@ class TestMultiLayer(unittest.TestCase):
             nn.Conv2d(in_channels=conv_weight_dims[1], out_channels=conv_weight_dims[0], kernel_size=conv_weight_dims[2:]), nn.ReLU(),
             nn.Flatten(), nn.Linear(in_features=np.product(conv_weight_dims[:2]), out_features=fc_out_dim), nn.ReLU(),
         )
-        q_weights1, q_biases1, q_inputs = quartz.utils.quantize_values(weights1, biases1, inputs, loihi_model.layers[1].weight_acc, t_max)
-        q_weights2, q_biases2, q_inputs = quartz.utils.quantize_values(weights2, biases2, inputs, loihi_model.layers[2].weight_acc, t_max)
+        q_weights1, q_biases1 = quartz.utils.quantize_parameters(weights1, biases1, loihi_model.layers[1].weight_acc, t_max)
+        q_weights2, q_biases2 = quartz.utils.quantize_parameters(weights2, biases2, loihi_model.layers[2].weight_acc, t_max)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         model[0].weight = nn.Parameter(torch.tensor(q_weights1))
         model[0].bias = nn.Parameter(torch.tensor(q_biases1))
         model[3].weight = nn.Parameter(torch.tensor(q_weights2))
@@ -176,6 +180,7 @@ class TestMultiLayer(unittest.TestCase):
         weights2 = (np.random.rand(*weight_dims2)-0.5) / 3 # np.zeros(weight_dims) #
         biases1 = (np.random.rand(weight_dims[0])-0.5) / 3
         biases2 = (np.random.rand(weight_dims2[0])-0.5) / 3 
+        inputs = np.random.rand(*input_dims) / 3
 
         loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=input_dims[1:]),
@@ -184,26 +189,23 @@ class TestMultiLayer(unittest.TestCase):
             layers.Conv2D(weights=weights2, biases=biases2),
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
         ])
-        values = np.random.rand(*input_dims) / 3
-        quantized_values = (values*t_max).round()/t_max
-        weight_acc = loihi_model.layers[1].weight_acc
-        quantized_weights1 = (weight_acc*weights1).round()/weight_acc
-        quantized_weights2 = (weight_acc*weights2).round()/weight_acc
-        quantized_biases1 = (biases1*t_max).round()/t_max
-        quantized_biases2 = (biases2*t_max).round()/t_max
-        
+
         model = nn.Sequential(
             nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2:]), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
             nn.Conv2d(in_channels=weight_dims2[1], out_channels=weight_dims2[0], kernel_size=weight_dims2[2:]), nn.ReLU(),
             nn.MaxPool2d(kernel_size=pooling_kernel_size, stride=pooling_stride), nn.ReLU(),
         )
-        model[0].weight = nn.Parameter(torch.tensor(quantized_weights1))
-        model[0].bias = nn.Parameter(torch.tensor(quantized_biases1))
-        model[4].weight = nn.Parameter(torch.tensor(quantized_weights2))
-        model[4].bias = nn.Parameter(torch.tensor(quantized_biases2))
-        model_output = model(torch.tensor(quantized_values)).detach().numpy()
-        loihi_output = loihi_model(values)
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
+        q_weights1, q_biases1 = quartz.utils.quantize_parameters(weights1, biases1, loihi_model.layers[1].weight_acc, t_max)
+        q_weights2, q_biases2 = quartz.utils.quantize_parameters(weights2, biases2, loihi_model.layers[2].weight_acc, t_max)
+
+        model[0].weight = nn.Parameter(torch.tensor(q_weights1))
+        model[0].bias = nn.Parameter(torch.tensor(q_biases1))
+        model[4].weight = nn.Parameter(torch.tensor(q_weights2))
+        model[4].bias = nn.Parameter(torch.tensor(q_biases2))
+        model_output = model(torch.tensor(q_inputs)).detach().numpy()
+        loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
@@ -245,7 +247,7 @@ class TestMultiLayer(unittest.TestCase):
         model[0].bias = nn.Parameter(torch.tensor(biases))
         model[4].weight = nn.Parameter(torch.tensor(weights2))
         model[4].bias = nn.Parameter(torch.tensor(biases2))
-        model_output = model(torch.tensor(inputs)).squeeze().detach().numpy()
+        model_output = model(torch.tensor(inputs)).detach().numpy()
         loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
@@ -278,8 +280,8 @@ class TestMultiLayer(unittest.TestCase):
             layers.MaxPool2D(kernel_size=pooling_kernel_size),
             layers.Conv2D(weights=weights3, biases=biases3),
         ])
-        values = np.random.rand(*input_dims) / 3
-        quantized_values = (values*t_max).round()/t_max
+        inputs = np.random.rand(*input_dims) / 3
+        q_inputs = quartz.utils.quantize_inputs(inputs, t_max)
         
         model = nn.Sequential(
             nn.Conv2d(in_channels=weight_dims[1], out_channels=weight_dims[0], kernel_size=weight_dims[2:]), nn.ReLU(),
@@ -294,8 +296,8 @@ class TestMultiLayer(unittest.TestCase):
         model[4].bias = nn.Parameter(torch.tensor(biases2))
         model[8].weight = nn.Parameter(torch.tensor(weights3))
         model[8].bias = nn.Parameter(torch.tensor(biases3))
-        model_output = model(torch.tensor(quantized_values)).detach().numpy()
-        loihi_output = loihi_model(values)
+        model_output = model(torch.tensor(q_inputs)).detach().numpy()
+        loihi_output = loihi_model(inputs)
         
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
