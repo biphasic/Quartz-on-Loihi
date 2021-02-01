@@ -22,6 +22,7 @@ class Layer:
         self.sync_neurons = []
         self.rectifier_neurons = []
         self.num_dendritic_accumulators = 2**3
+        self.max_axonal_delay = 63*3
 
     
     def neurons(self): return self.output_neurons + self.sync_neurons + self.rectifier_neurons + self.bias_neurons
@@ -30,23 +31,22 @@ class Layer:
 
     def names(self): return [neuron.name for neuron in self.neurons()]
     
-    def n_compartments(self):
+    def n_output_compartments(self):
         if isinstance(self, quartz.layers.InputLayer): return 0
-        return sum([block.n_compartments() for block in self.blocks])
+        return len(self.neurons_without_bias())
+    
+    def n_bias_compartments(self):
+        if isinstance(self, quartz.layers.InputLayer): return 0
+        return len(self.bias_neurons)
 
     def n_parameters(self):
         if isinstance(self, (quartz.layers.MaxPool2D, quartz.layers.InputLayer)): return 0
         n_params = np.product(self.weights.shape)
         if self.biases is not None: n_params += np.product(self.biases.shape)
         return n_params
-    
-    def n_spikes(self):
-        if isinstance(self, quartz.layers.MaxPool2D):
-            return int(-1 * (np.product(self.kernel_size)-1) / np.product(self.kernel_size) * np.product(self.prev_layer.output_dims) + np.product(self.output_dims))
-        return self.n_compartments()
 
     def n_outgoing_connections(self):
-        return sum([block.n_outgoing_connections() for block in self.blocks])
+        return sum([np.product(connection[1].shape) for block in self.blocks for connection in block.connections]) # 
 
     def n_recurrent_connections(self):
         return sum([block.n_recurrent_connections() for block in self.blocks])
@@ -119,13 +119,15 @@ class Dense(Layer):
         for b, bias in enumerate(biases):
             if bias != 0:
                 bias_sign = np.sign(bias)
-                delay = round((1-abs(bias))*t_max)
-                source = prev_layer.sync_neurons[0]
-                while delay > (self.num_dendritic_accumulators-2):
+                delay = np.maximum(round((1-abs(bias))*t_max) - 1, 0)
+                self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(b))]
+                source = self.bias_neurons[-1]
+                prev_layer.sync_neurons[0].connect_to(source, self.weight_e)
+                while delay > (self.max_axonal_delay):
                     self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(b))]
-                    source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.num_dendritic_accumulators-2)
+                    source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.max_axonal_delay)
                     source = self.bias_neurons[-1]
-                    delay -= self.num_dendritic_accumulators-2+1
+                    delay -= self.max_axonal_delay+1
                 source.connect_to(self.output_neurons[b], bias_sign*self.weight_acc, 0, delay)
 
         if self.rectifying:

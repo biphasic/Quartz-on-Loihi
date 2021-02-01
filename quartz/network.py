@@ -23,12 +23,16 @@ class Network:
         self.t_max = t_max
         self.layers = layers
         self.probes = []
-        for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
-            self.layers[i].connect_from(self.layers[i-1], t_max)
+        if len(self.layers) > 5:
+            for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
+                self.layers[i].connect_from(self.layers[i-1], t_max)
+        else:
+            for i in range(1, len(self.layers)): # skip first layer
+                self.layers[i].connect_from(self.layers[i-1], t_max)
         # assign vth_mants according to t_max
         self.check_vth_mants()
         
-    def __call__(self, inputs, profiling=False, logging=False, partition='loihi'):
+    def __call__(self, inputs, profiling=False, logging=False, verbose=False, partition='loihi'):
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
         n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
@@ -38,6 +42,7 @@ class Network:
         self.data = []
         if not logging:
             set_verbosity(LoggingLevel.ERROR)
+        self.verbose = verbose
         # monitor output layer and setup probes
         if not profiling:
             output_probe = quartz.probe(self.layers[-1])
@@ -74,17 +79,17 @@ class Network:
         # add inputs
         self.add_input_spikes(input_spike_list)
         # compile the whole thing and return board
-        print("{} Compiling model...".format(datetime.datetime.now()))
+        if self.verbose: print("{} Compiling model...".format(datetime.datetime.now()))
         return nx.N2Compiler().compile(net)
 
-    def n_compartments(self):
-        return sum([layer.n_compartments() for layer in self.layers])
+    def n_output_compartments(self):
+        return sum([layer.n_output_compartments() for layer in self.layers])
+    
+    def n_bias_compartments(self):
+        return sum([layer.n_bias_compartments() for layer in self.layers])
 
     def n_parameters(self):
         return sum([layer.n_parameters() for layer in self.layers])
-
-    def n_spikes(self):
-        return sum([layer.n_spikes() for layer in self.layers])
     
     def n_outgoing_connections(self):
         return sum([layer.n_outgoing_connections() for layer in self.layers])
@@ -111,7 +116,7 @@ class Network:
         n_outgoing_axons_per_core = 4096
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-            max_comps_per_core = 256
+            max_comps_per_core = 130
             for neuron in layer.neurons():
                 if core_id >= 127: 
                     print(self.core_ids)
@@ -143,13 +148,18 @@ class Network:
 
         # other layers
         for i, layer in enumerate(self.layers[1:]):
-            for neuron in layer.neurons():
-                acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0)
-                pulse_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, compartmentCurrentDecay=4095)
+            for neuron in layer.neurons_without_bias():
+                acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0, tEpoch=63)
+                pulse_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, compartmentCurrentDecay=4095, tEpoch=63)
                 loihi_neuron = net.createCompartment(acc_proto) if neuron.loihi_type == Neuron.acc else net.createCompartment(pulse_proto)
                 neuron.loihi_neuron = loihi_neuron
-                if neuron.monitor:
-                    neuron.probe.set_loihi_probe(loihi_neuron.probe(full_measurements))
+                if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(full_measurements))
+            for neuron in layer.bias_neurons:
+                assert len(neuron.synapses) == 1
+                bias_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, 
+                                                     compartmentCurrentDecay=4095, tEpoch=63, axonDelay=neuron.synapses[0][3])
+                loihi_neuron = net.createCompartment(bias_proto)
+                neuron.loihi_neuron = loihi_neuron
             for block in layer.blocks:
                 block_group = net.createCompartmentGroup(size=0, name=block.name)
                 block_group.addCompartments([neuron.loihi_neuron for neuron in block.neurons])
@@ -162,7 +172,7 @@ class Network:
 
 #     @profile # uncomment to profile model building
     def connect_blocks(self, net):
-        print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
+        if self.verbose: print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
             for block in layer.blocks:
                 for target, weights, exponent, delays in block.connections:
@@ -183,10 +193,15 @@ class Network:
                         target.loihi_block = loihi_block
                     block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
-            for neuron in layer.neurons():
+            for neuron in layer.neurons_without_bias():
                 for target, weight, exponent, delay in neuron.synapses:
                     if weight != 0:
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
+                        neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
+            for neuron in layer.bias_neurons:
+                for target, weight, exponent, delay in neuron.synapses:
+                    if weight != 0:
+                        prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=0, signMode=2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
         return net
 
@@ -244,10 +259,10 @@ class Network:
         print(self.compartments_on_core)
 
     def __repr__(self):
-        print("layer name   \t  n_comp n_spikes n_param    n_conn")
+        print("layer name   \t  n_comp n_bias  n_param    n_conn")
         print("---------------------------------------------------")
-        print('\n'.join(["{:11s}\t{:8d} {:8d} {:7d} {:9d}".format(layer.name, layer.n_compartments(), layer.n_spikes(), layer.n_parameters(),
+        print('\n'.join(["{:11s}\t{:8d} {:8d} {:7d} {:9d}".format(layer.name, layer.n_output_compartments(), layer.n_bias_compartments(), layer.n_parameters(),
                                                          layer.n_outgoing_connections()) for layer in self.layers]))
         print("---------------------------------------------------")
-        return "{:11s}\t{:8d} {:8d} {:7d} {:9d}".format("total", self.n_compartments(), self.n_spikes(), self.n_parameters(), self.n_outgoing_connections())
+        return "{:11s}\t{:8d} {:8d} {:7d} {:9d}".format("total", self.n_output_compartments(), self.n_bias_compartments(), self.n_parameters(), self.n_outgoing_connections())
 
