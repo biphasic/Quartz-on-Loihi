@@ -1,4 +1,4 @@
-from quartz.neuron import Neuron
+from quartz.components import Neuron
 from quartz.utils import decode_spike_timings, profile
 import quartz
 import numpy as np
@@ -112,31 +112,41 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         # pulse and acc neuron types on every core + bias neurons with many different axon delays
         self.compartment_profiles_on_core = np.ones((128)) * 2 
-        n_compartments_per_core = 1024
-        n_incoming_axons_per_core = 4096
-        n_outgoing_axons_per_core = 4096
+        self.synapses_on_core = np.zeros((128))
+        max_profiles_per_core = 32
+        max_cx_per_core = 1024
+        max_incoming_axons_per_core = 4096
+        max_outgoing_axons_per_core = 4096
+        # place bias neurons that have different cx config due to axon delays
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-            max_profiles_per_core = 32
             for neuron in layer.bias_neurons:
                 if self.compartment_profiles_on_core[core_id] + 1 >= max_profiles_per_core:
                     core_id += 1
                 neuron.core_id = core_id
                 self.compartment_profiles_on_core[core_id] += 1
                 self.compartments_on_core[core_id] += 1
+                self.synapses_on_core[core_id] += 1
+        # check number of incoming synapses for every neuron
+#         core_id = 0
+#         for i, layer in enumerate(self.layers):
+#             for block in layer.blocks:
+#                 for connection in block:
+#                     connection[0].incoming_synapses += np.sum(neuron.connection[1]!=0)
+
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-            max_comps_per_core = 100                
             for neuron in layer.neurons_without_bias():
-                if core_id >= 127: 
+                if core_id >= 127:
                     print(self.core_ids)
                     print(self.compartments_on_core)
                     raise NotImplementedError("Too many neurons for one Loihi chip")
-                if self.compartments_on_core[core_id] + 1 >= max_comps_per_core:
+                if self.compartments_on_core[core_id] + 1 > max_cx_per_core or self.synapses_on_core[core_id]:
                     core_id += 1
                 self.core_ids[core_id] = i
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
+#                 self.synapses_on_core[core_id] += np.sum(neuron.connection[1]!=0)
 #         print(self.compartment_profiles_on_core)
         
     def create_compartments(self):
@@ -193,23 +203,20 @@ class Network:
                     if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-                    if len(block.neurons) == 1: # fixes issue with broadcasting the connectionMask when there is only 1 source neuron
-                        mask = mask.reshape(-1, 1)
-                    if isinstance(target, quartz.neuron.Neuron) and not hasattr(target, 'loihi_block'): # an nxSDK compGroup can only connect to another group
+#                     print(block, target)
+#                     print(len(block.neurons))
+#                     print(weights.shape)
+                    if isinstance(target, quartz.components.Neuron) and not hasattr(target, 'loihi_block'): # an nxSDK compGroup can only connect to another group
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)
                         loihi_block.addCompartments(target.loihi_neuron)
                         target.loihi_block = loihi_block
                     block.loihi_block.connect(target.loihi_block, prototype=conn_prototypes, connectionMask=mask,
                                               prototypeMap=proto_map, weight=weights, delay=np.array(delays))
-            for neuron in layer.neurons_without_bias():
+            for neuron in layer.neurons():
                 for target, weight, exponent, delay in neuron.synapses:
                     if weight != 0:
+                        if neuron.type == Neuron.bias: delay = 0 # axon delay already defined in cx prototype
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
-                        neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
-            for neuron in layer.bias_neurons:
-                for target, weight, exponent, delay in neuron.synapses:
-                    if weight != 0:
-                        prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=0, signMode=2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
         return net
 

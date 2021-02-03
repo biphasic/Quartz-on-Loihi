@@ -1,5 +1,4 @@
-from .neuron import Neuron
-from .blocks import *
+from .components import Block, Neuron
 from .layers import *
 from .network import Network
 from .probe import probe
