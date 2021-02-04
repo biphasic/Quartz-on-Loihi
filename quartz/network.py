@@ -112,7 +112,8 @@ class Network:
         self.compartments_on_core = np.zeros((128))
         # pulse and acc neuron types on every core + bias neurons with many different axon delays
         self.compartment_profiles_on_core = np.ones((128)) * 2 
-        self.synapses_on_core = np.zeros((128))
+        self.incoming_synapses_on_core = np.zeros((128))
+        self.outgoing_synapses_on_core = np.zeros((128))
         max_profiles_per_core = 32
         max_cx_per_core = 1024
         max_incoming_axons_per_core = 4096
@@ -126,14 +127,8 @@ class Network:
                 neuron.core_id = core_id
                 self.compartment_profiles_on_core[core_id] += 1
                 self.compartments_on_core[core_id] += 1
-                self.synapses_on_core[core_id] += 1
+                self.outgoing_synapses_on_core[core_id] += 1
         # check number of incoming synapses for every neuron
-#         core_id = 0
-#         for i, layer in enumerate(self.layers):
-#             for block in layer.blocks:
-#                 for connection in block:
-#                     connection[0].incoming_synapses += np.sum(neuron.connection[1]!=0)
-
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.neurons_without_bias():
@@ -141,13 +136,19 @@ class Network:
                     print(self.core_ids)
                     print(self.compartments_on_core)
                     raise NotImplementedError("Too many neurons for one Loihi chip")
-                if self.compartments_on_core[core_id] + 1 > max_cx_per_core or self.synapses_on_core[core_id]:
+                while self.compartments_on_core[core_id] + 1 > max_cx_per_core\
+                    or self.outgoing_synapses_on_core[core_id] + neuron.n_outgoing_synapses > max_outgoing_axons_per_core\
+                    or self.incoming_synapses_on_core[core_id] + neuron.n_incoming_synapses > max_incoming_axons_per_core:
                     core_id += 1
                 self.core_ids[core_id] = i
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
-#                 self.synapses_on_core[core_id] += np.sum(neuron.connection[1]!=0)
-#         print(self.compartment_profiles_on_core)
+                self.outgoing_synapses_on_core[core_id] += neuron.n_outgoing_synapses
+                self.incoming_synapses_on_core[core_id] += neuron.n_incoming_synapses
+        print(self.compartment_profiles_on_core)
+        print(self.compartments_on_core)
+        print(self.outgoing_synapses_on_core)
+        print(self.incoming_synapses_on_core)
         
     def create_compartments(self):
         net = nx.NxNet()

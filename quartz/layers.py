@@ -45,7 +45,8 @@ class Layer:
         return n_params
 
     def n_outgoing_connections(self):
-        return sum([np.sum(connection[1]!=0) for block in self.blocks for connection in block.connections]) # 
+        return sum([np.sum(connection[1]!=0) for block in self.blocks for connection in block.connections])\
+                + sum([len(neuron.synapses) for neuron in self.neurons()])
 
     def n_recurrent_connections(self):
         return sum([block.n_recurrent_connections() for block in self.blocks])
@@ -287,7 +288,8 @@ class MaxPool2D(Layer):
             for i in range(int(np.product(self.output_dims[1:]))): # loop through all units in the output channel
                 block_patch = Block(neurons=list(input_neurons[patches[i,:,:,:].ravel()]))
                 prev_layer.blocks += [block_patch]
-                block_patch.connect_to(self.output_neurons[output_channel*np.product(self.output_dims[1:])+i], np.array([self.weight_e]))
+                block_patch.connect_to(self.output_neurons[output_channel*np.product(self.output_dims[1:])+i], 
+                                       np.array([self.weight_e]*len(block_patch.neurons)).reshape(1, len(block_patch.neurons)))
 
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
