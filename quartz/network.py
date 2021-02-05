@@ -14,6 +14,7 @@ import datetime
 import ipdb
 import os
 from tqdm.auto import tqdm
+from collections import defaultdict 
 
 
 class Network:
@@ -80,7 +81,9 @@ class Network:
         self.add_input_spikes(input_spike_list)
         # compile the whole thing and return board
         if self.logging: print("{} Compiling model...".format(datetime.datetime.now()))
-        return nx.N2Compiler().compile(net)
+        board = nx.N2Compiler().compile(net)
+        ipdb.set_trace()
+        return board
 
     def n_output_compartments(self):
         return sum([layer.n_output_compartments() for layer in self.layers])
@@ -128,17 +131,22 @@ class Network:
                 self.compartment_profiles_on_core[core_id] += 1
                 self.compartments_on_core[core_id] += 1
                 self.outgoing_synapses_on_core[core_id] += 1
+
         # check number of incoming synapses for every neuron
         core_id = 0
+        layer_limits = defaultdict(lambda: 100)
+#         layer_limits[0] = 250
+#         layer_limits[2] = 400
         for i, layer in enumerate(self.layers[1:]):
+            max_cx_per_core = layer_limits[i]
             for neuron in layer.neurons_without_bias():
                 if core_id >= 127:
                     print(self.core_ids)
                     print(self.compartments_on_core)
                     raise NotImplementedError("Too many neurons for one Loihi chip")
-                while self.compartments_on_core[core_id] + 1 > max_cx_per_core\
-                    or self.outgoing_synapses_on_core[core_id] + neuron.n_outgoing_synapses > max_outgoing_axons_per_core\
-                    or self.incoming_synapses_on_core[core_id] + neuron.n_incoming_synapses > max_incoming_axons_per_core:
+                while self.compartments_on_core[core_id] + 1 > max_cx_per_core:
+#                     or self.outgoing_synapses_on_core[core_id] + neuron.n_outgoing_synapses > max_outgoing_axons_per_core\
+#                     or self.incoming_synapses_on_core[core_id] + neuron.n_incoming_synapses > max_incoming_axons_per_core:
                     core_id += 1
                 self.core_ids[core_id] = i
                 neuron.core_id = core_id
@@ -147,8 +155,8 @@ class Network:
                 self.incoming_synapses_on_core[core_id] += neuron.n_incoming_synapses
         print(self.compartment_profiles_on_core)
         print(self.compartments_on_core)
-        print(self.outgoing_synapses_on_core)
-        print(self.incoming_synapses_on_core)
+#         print(self.outgoing_synapses_on_core)
+#         print(self.incoming_synapses_on_core)
         
     def create_compartments(self):
         net = nx.NxNet()
