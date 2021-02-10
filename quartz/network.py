@@ -63,7 +63,7 @@ class Network:
                 try:
                     output_array = output_array.reshape(last_layer.output_dims, batch_size).T
                 except:
-                    pass
+                    print("Could not reshape output to desired size...")
             else:
                 output_array = output_array.reshape(*last_layer.output_dims, batch_size)
                 output_array = np.transpose(output_array, (3,0,1,2))
@@ -82,7 +82,6 @@ class Network:
         # compile the whole thing and return board
         if self.logging: print("{} Compiling model...".format(datetime.datetime.now()))
         board = nx.N2Compiler().compile(net)
-        ipdb.set_trace()
         return board
 
     def n_output_compartments(self):
@@ -134,7 +133,7 @@ class Network:
 
         # check number of incoming synapses for every neuron
         core_id = 0
-        layer_limits = defaultdict(lambda: 100)
+        layer_limits = defaultdict(lambda: 50)
 #         layer_limits[0] = 250
 #         layer_limits[2] = 400
         for i, layer in enumerate(self.layers[1:]):
@@ -209,6 +208,8 @@ class Network:
                     proto_map = np.zeros_like(weights).astype(int)
                     proto_map[weights<0] = 1
                     weights = weights.round()
+                    weights[weights>255] = 255
+                    weights[weights<-255] = -255
                     if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
