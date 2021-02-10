@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 import torchvision
 import matplotlib.pyplot as plt
 import ipdb
@@ -76,7 +76,6 @@ def validate(valid_loader, model, criterion, device, percentile):
         running_loss += loss.item() * X.size(0)
     epoch_loss = running_loss / len(valid_loader.dataset)
     
-#     ipdb.set_trace()
     str_output = ''.join(["{}: [{},{}]; ".format(names[i], str(min_weights[i]), str(max_weights[i])) for i in range(len(names))])
     print("\t\tweights: " + str_output)
     str_output = ''.join(["{}: [{},{}]; ".format(names[i], str(min_weights_percentile[i]), str(max_weights_percentile[i])) for i in range(len(names))])
@@ -87,9 +86,12 @@ def validate(valid_loader, model, criterion, device, percentile):
     return model, epoch_loss
 
 def get_weights_biases(model):
-    parameters = list(model.parameters())
-    weights = [weight for weight in parameters[::2][::2]]
-    biases = [bias for bias in parameters[1::2][::2]]
+    weights = []
+    biases = []
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+            weights.append(module.weight.detach().numpy())
+            biases.append(module.bias.detach().numpy())
     return weights, biases
 
 def clip_parameters(model, minimum=-1, maximum=1):
@@ -97,15 +99,3 @@ def clip_parameters(model, minimum=-1, maximum=1):
     for parameter in parameters:
         parameter = nn.Parameter(torch.clamp(parameter, minimum, maximum))
     return model
-
-def get_all_weights_biases(model):
-    parameters = list(model.parameters())
-    weights = [weight for weight in parameters[::2]]
-    biases = [bias for bias in parameters[1::2]]
-    return weights, biases
-
-def biggest_abs_weight(model):
-    weights, biases = get_weights_biases(model)
-    max_weight = torch.cat([weight.flatten() for weight in weights]).abs().max()
-    max_bias = torch.cat([bias.flatten() for bias in biases]).abs().max()
-    print("biggest weight={0:.3f} and bias={1:.3f}".format(max_weight, max_bias))
