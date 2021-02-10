@@ -10,13 +10,13 @@ class ConvNet(nn.Module):
         self.features = nn.Sequential(
             ConvBNReLU(in_channels=3, out_channels=32, kernel_size=3, stride=2),
             Bottleneck(in_channels=32, out_channels=64, expansion_factor=4, stride=2),
-            Bottleneck(in_channels=64, out_channels=64, expansion_factor=4, stride=1),
+            #Bottleneck(in_channels=64, out_channels=64, expansion_factor=4, stride=1),
             Bottleneck(in_channels=64, out_channels=128, expansion_factor=4, stride=2),
         )
         self.classifier = nn.Sequential(
-            ConvPool(in_channels=128, out_channels=256, conv_kernel_size=1, pool_kernel_size=4, stride=1),
+            ConvPool(in_channels=128, out_channels=128, conv_kernel_size=1, pool_kernel_size=4, stride=1),
             nn.Flatten(),
-            nn.Linear(in_features=256, out_features=n_classes),
+            nn.Linear(in_features=128, out_features=n_classes),
         )
 
     def forward(self, out):

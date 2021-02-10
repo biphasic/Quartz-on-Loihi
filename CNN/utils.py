@@ -10,6 +10,8 @@ import torchvision
 import matplotlib.pyplot as plt
 import ipdb
 import time
+from functools import partial
+
 
 def get_accuracy(model, data_loader, device):
     correct_pred = 0 
@@ -41,10 +43,28 @@ def plot_losses(train_losses, valid_losses):
     # change the plot style to default
     plt.style.use('default')
 
-def validate(valid_loader, model, criterion, device):
+def validate(valid_loader, model, criterion, device, percentile):
     '''
     Function for the validation step of the training loop
     '''
+    activations = {}
+    def save_activation(name, mod, inp, out):
+        activations[name] = out # don't detach or move to CPU here
+
+    names = []
+    max_weights = []
+    max_weights_percentile = []
+    min_weights = []
+    min_weights_percentile = []
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+            module.register_forward_hook(partial(save_activation, name))
+            names.append(name)
+            max_weights.append(module.weight.max().cpu().numpy().round(2))
+            min_weights.append(module.weight.min().cpu().numpy().round(2))
+            max_weights_percentile.append(np.percentile(module.weight.cpu().numpy(), percentile).round(2))
+            min_weights_percentile.append(np.percentile(module.weight.cpu().numpy(), 100-percentile).round(2))
+            
     model.eval()
     running_loss = 0
     for X, y_true in valid_loader:
@@ -55,6 +75,15 @@ def validate(valid_loader, model, criterion, device):
         loss = criterion(y_hat, y_true)
         running_loss += loss.item() * X.size(0)
     epoch_loss = running_loss / len(valid_loader.dataset)
+    
+#     ipdb.set_trace()
+    str_output = ''.join(["{}: [{},{}]; ".format(names[i], str(min_weights[i]), str(max_weights[i])) for i in range(len(names))])
+    print("\t\tweights: " + str_output)
+    str_output = ''.join(["{}: [{},{}]; ".format(names[i], str(min_weights_percentile[i]), str(max_weights_percentile[i])) for i in range(len(names))])
+    print("\t" + str(percentile) + "% weights: " + str_output)
+    str_output = ''.join(["{}: {}, ".format(name, round(np.percentile(np.maximum(activation.cpu(),0), percentile),3)) for name, activation in activations.items()])
+    print("\t" + str(percentile) + "% activations: " + str_output)
+
     return model, epoch_loss
 
 def get_weights_biases(model):
@@ -63,18 +92,11 @@ def get_weights_biases(model):
     biases = [bias for bias in parameters[1::2][::2]]
     return weights, biases
 
-# def get_weights_biases(model):
-#     weights = []
-#     weights.append(model.conv1.weight)
-#     weights.append(model.conv2.weight)
-#     weights.append(model.conv3.weight)
-#     weights.append(model.fc1.weight)
-#     biases = []
-#     biases.append(model.bn1.bias)
-#     biases.append(model.bn2.bias)
-#     biases.append(model.bn3.bias)
-#     biases.append(model.fc1.bias)
-#     return weights, biases
+def clip_parameters(model, minimum=-1, maximum=1):
+    parameters = list(model.parameters())
+    for parameter in parameters:
+        parameter = nn.Parameter(torch.clamp(parameter, minimum, maximum))
+    return model
 
 def get_all_weights_biases(model):
     parameters = list(model.parameters())

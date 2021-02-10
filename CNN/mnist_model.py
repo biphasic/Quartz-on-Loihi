@@ -13,18 +13,18 @@ class ConvNet(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=l1_n_channels, kernel_size=5, stride=1, bias=conv_bias)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.drop1 = nn.Dropout2d(0.5*drop)
-        self.bn1 = nn.BatchNorm2d(l1_n_channels)
+#         self.bn1 = nn.BatchNorm2d(l1_n_channels)
         
         l2_n_channels = 12
         self.conv2 = nn.Conv2d(in_channels=l1_n_channels, out_channels=l2_n_channels, kernel_size=5, stride=1, bias=conv_bias)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
         self.drop2 = nn.Dropout2d(drop)
-        self.bn2 = nn.BatchNorm2d(l2_n_channels)
+#         self.bn2 = nn.BatchNorm2d(l2_n_channels)
 
         l3_n_channels = 120
         self.conv3 = nn.Conv2d(in_channels=l2_n_channels, out_channels=l3_n_channels, kernel_size=4, stride=1, bias=conv_bias)
         self.drop3 = nn.Dropout2d(drop)
-        self.bn3 = nn.BatchNorm2d(l3_n_channels)
+#         self.bn3 = nn.BatchNorm2d(l3_n_channels)
 
         self.fc1 = nn.Linear(in_features=l3_n_channels, out_features=n_classes)
 
