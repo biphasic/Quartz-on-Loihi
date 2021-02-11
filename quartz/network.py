@@ -23,7 +23,6 @@ class Network:
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         self.layers = layers
-        self.probes = []
         if len(self.layers) > 5:
             for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
                 self.layers[i].connect_from(self.layers[i-1], t_max)
@@ -60,6 +59,10 @@ class Network:
             output_array = output_probe.output()[1]
             last_layer = self.layers[-1]
             if isinstance(last_layer, quartz.layers.Dense):
+                self.first_spikes = np.zeros((last_layer.output_dims,batch_size))
+                for i, (key, values) in enumerate(sorted(self.data[0].items())[1:last_layer.output_dims+1]):
+                    for iteration in range(batch_size):
+                        self.first_spikes[i, iteration] = values[(values>(iteration * self.steps_per_image)) & (values<((iteration+1)*self.steps_per_image))][0]
                 try:
                     output_array = output_array.reshape(last_layer.output_dims, batch_size).T
                 except:
@@ -70,7 +73,6 @@ class Network:
             return output_array
 
     def build_model(self, input_spike_list):
-        net = nx.NxNet()
         # assign core layout based on no of compartments and no of unique connections
         self.check_layout()
         # create loihi compartments
@@ -152,10 +154,11 @@ class Network:
                 self.compartments_on_core[core_id] += 1
                 self.outgoing_synapses_on_core[core_id] += neuron.n_outgoing_synapses
                 self.incoming_synapses_on_core[core_id] += neuron.n_incoming_synapses
-        print(self.compartment_profiles_on_core)
-        print(self.compartments_on_core)
-#         print(self.outgoing_synapses_on_core)
-#         print(self.incoming_synapses_on_core)
+        if self.logging:
+            print(self.compartment_profiles_on_core)
+            print(self.compartments_on_core)
+    #         print(self.outgoing_synapses_on_core)
+    #         print(self.incoming_synapses_on_core)
         
     def create_compartments(self):
         net = nx.NxNet()
@@ -174,7 +177,7 @@ class Network:
                 block_group.addSpikeInputPort(neuron.loihi_neuron)
             block.loihi_block = block_group
 
-        # other layers
+        # subsequent layers
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.neurons_without_bias():
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0, tEpoch=63)
@@ -216,7 +219,7 @@ class Network:
 #                     print(block, target)
 #                     print(len(block.neurons))
 #                     print(weights.shape)
-                    if isinstance(target, quartz.components.Neuron) and not hasattr(target, 'loihi_block'): # an nxSDK compGroup can only connect to another group
+                    if isinstance(target, quartz.components.Neuron) and target.loihi_block is None: # an nxSDK compGroup can only connect to another group
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)
                         loihi_block.addCompartments(target.loihi_neuron)
                         target.loihi_block = loihi_block
@@ -228,6 +231,7 @@ class Network:
                         if neuron.type == Neuron.bias: delay = 0 # axon delay already defined in cx prototype
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
+                neuron.loihi_block = None # reset for next run with same model
         return net
 
     def add_input_spikes(self, spike_list):

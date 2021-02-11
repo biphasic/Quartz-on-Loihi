@@ -30,6 +30,7 @@ class Neuron:
     def __init__(self, type=output, loihi_type=pulse, name=None, monitor=False):
         self.type = type
         self.loihi_type = loihi_type
+        self.loihi_block = None
         self.name = name
         self.monitor = monitor
         self.synapses = []
