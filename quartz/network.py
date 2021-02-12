@@ -114,7 +114,7 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
-        # pulse and acc neuron types on every core + bias neurons with many different axon delays
+        # pulse and acc neuron types on every core + many different bias neuron prifiles with varying axon delays
         self.compartment_profiles_on_core = np.ones((128)) * 2 
         self.incoming_synapses_on_core = np.zeros((128))
         self.outgoing_synapses_on_core = np.zeros((128))
@@ -155,7 +155,8 @@ class Network:
                 self.outgoing_synapses_on_core[core_id] += neuron.n_outgoing_synapses
                 self.incoming_synapses_on_core[core_id] += neuron.n_incoming_synapses
         if self.logging:
-            print(self.compartment_profiles_on_core)
+#             print(self.compartment_profiles_on_core)
+            print("Number of compartments on each core for 1 chip:")
             print(self.compartments_on_core)
     #         print(self.outgoing_synapses_on_core)
     #         print(self.incoming_synapses_on_core)
