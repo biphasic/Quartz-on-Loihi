@@ -7,7 +7,7 @@ import ipdb
 
 class Layer:
     """
-    A layer in Quartz is a higher level representation of connections between layers in the model, before being compiled to a backend. The connections can happen between individual neurons in the case of single weights, or blocks of neurons in the case of weight matrices.
+    A layer in Quartz is a parent class for all layers in the model, before being compiled to a backend. The connections can happen between individual neurons in the case of single weights, or blocks of neurons in the case of weight matrices.
     
     Args:
         name: layer name. 
@@ -66,6 +66,16 @@ class Layer:
 
 
 class InputLayer(Layer):
+    """
+    Input layer is needed so that neuron can be tiled properly when connected to the first layer. When compiled to the backend, this layer does not need any neurons/compartments, but uses input generators instead.
+    
+    Args:
+        dims: input dimensions.
+        name: layer name. 
+        
+    Returns:
+        input layer object.
+    """
     def __init__(self, dims, name="l0-input:", **kwargs):
         super(InputLayer, self).__init__(name=name, **kwargs)
         self.layer_n = 0
@@ -79,6 +89,18 @@ class InputLayer(Layer):
 
 
 class Dense(Layer):
+    """
+    A linear layer with optional relu activation. Weights and biases have to be passed from the model that is being converted. 
+    
+    Args:
+        weights: the actual weights with dimensions (OUTxINPUT).
+        biases: optional biases with dimensions (OUT).
+        rectifying: whether to use relu activation or not.
+        name: layer name. 
+        
+    Returns:
+        dense layer object.
+    """
     def __init__(self, weights, biases=None, rectifying=True, name="dense:", **kwargs):
         super(Dense, self).__init__(name=name, **kwargs)
         self.weights = weights.copy()
@@ -96,13 +118,13 @@ class Dense(Layer):
 
         # create and connect support neurons
         self.sync_neurons = [Neuron(name=self.name+"sync:", type=Neuron.sync)]
-        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)]
+        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, current_type=Neuron.accumulation)]
         self.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], -self.weight_acc)
         prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
         # create all output neurons and create self-inhibiting group connection
-        self.output_neurons = [Neuron(name=self.name+"relco-n{0:3.0f}:".format(i), loihi_type=Neuron.acc) for i in range(self.weights.shape[0])]
+        self.output_neurons = [Neuron(name=self.name+"relco-n{0:3.0f}:".format(i), current_type=Neuron.accumulation) for i in range(self.weights.shape[0])]
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
         layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
         self.blocks += [layer_neuron_block]
@@ -148,6 +170,21 @@ class Dense(Layer):
 
 
 class Conv2D(Layer):
+    """
+    A convolutional layer with optional relu activation. Weights and biases have to be passed from the model that is being converted. Supports stride, padding, groups. Modeled after [pytorch conv2d](https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html) layer. 
+    
+    Args:
+        weights: the actual weights with dimensions (OUTxINPUT).
+        biases: optional biases with dimensions (OUT).
+        stride: controls the stride for the cross-correlation, a single number or a tuple.
+        padding: controls the amount of implicit zero-paddings on both sides for padding number of points for each dimension.
+        groups: controls the connections between inputs and outputs. Can be used for depthwise separable convolutions by setting this parameter to the number of input channels.
+        rectifying: whether to use relu activation or not.
+        name: layer name. 
+        
+    Returns:
+        conv layer object.
+    """
     def __init__(self, weights, biases=None, stride=(1,1), padding=(0,0), groups=1, rectifying=True, name="conv2D:", monitor=False, **kwargs):
         super(Conv2D, self).__init__(name=name, monitor=monitor, **kwargs)
         self.weights = weights.copy()
@@ -175,13 +212,13 @@ class Conv2D(Layer):
         
         # create and connect support neurons
         self.sync_neurons = [Neuron(name=self.name+"sync:", type=Neuron.sync)]
-        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, loihi_type=Neuron.acc)]
+        self.rectifier_neurons = [Neuron(name=self.name+"rectifier:", type=Neuron.rectifier, current_type=Neuron.accumulation)]
         self.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], -self.weight_acc)
         prev_layer.rectifier_neurons[0].connect_to(self.sync_neurons[0], self.weight_e)
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_acc)
         
         # create all output neurons 
-        self.output_neurons = [Neuron(name=self.name+"relco-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.acc) 
+        self.output_neurons = [Neuron(name=self.name+"relco-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), current_type=Neuron.accumulation) 
                                for output_channel in range(output_channels) for i in range(np.product(side_lengths))]
 
         input_neurons = prev_layer.output_neurons
@@ -261,6 +298,17 @@ class Conv2D(Layer):
 
 
 class MaxPool2D(Layer):
+    """
+    A maxpooling layer. Kernel size has to be passed from the model that is being converted. 
+    
+    Args:
+        kernel_size: size of the pooling kernel
+        stride: controls the stride of the pooling kernel, a single number or a tuple.
+        name: layer name. 
+        
+    Returns:
+        maxpooling layer object.
+    """
     def __init__(self, kernel_size, stride=None, name="maxpool:", **kwargs):
         super(MaxPool2D, self).__init__(name=name, **kwargs)
         self.kernel_size = kernel_size
@@ -283,7 +331,7 @@ class MaxPool2D(Layer):
         prev_layer.rectifier_neurons[0].connect_to(self.rectifier_neurons[0], self.weight_e)
         
         # create output neurons 
-        self.output_neurons += [Neuron(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), loihi_type=Neuron.pulse)
+        self.output_neurons += [Neuron(name=self.name+"wta-c{0:3.0f}-n{1:3.0f}:".format(output_channel, i), current_type=Neuron.instant)
                                for output_channel in range(output_channels) for i in range(np.product(self.output_dims[1:]))]
 
         input_neurons = np.array(prev_layer.output_neurons)

@@ -37,23 +37,22 @@ class Block:
 
 class Neuron:
     """
-    A neuron is a unit that has been converted from the ANN model. A neuron can be of type pulse (instant input current decay) 
-    or accumulation (no current decay) and can connect to another neuron or a block.
+    A neuron is a unit that has been converted from the ANN model. A neuron can be of instant input current decay or accumulation (no current decay) type and can connect to another neuron or a block.
     
     Args:
         type: can be input, output, bias, sync or rectifier. Little significance for the model, but interesting when compiling to backend.
-        loihi_type: layer name. 
-        monitor: flag that decides whether all neurons in the block are probed. Usually set by quartz.probe
+        current_type: can be instant or accumulating. Equivalent to V-neuron or g_e neuron in the paper.  
+        monitor: flag that decides whether neuron is probed. Usually set by quartz.probe
         
     Returns:
-        block object that can define connections in a fast and memory efficient way.
+        neuron object
     """
     input, output, bias, sync, rectifier = range(5)
-    pulse, acc = range(2)
+    instant, accumulation = range(2)
 
-    def __init__(self, type=output, loihi_type=pulse, name=None, monitor=False):
+    def __init__(self, type=output, current_type=instant, name=None, monitor=False):
         self.type = type
-        self.loihi_type = loihi_type
+        self.current_type = current_type
         self.loihi_block = None
         self.name = name
         self.monitor = monitor

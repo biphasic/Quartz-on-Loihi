@@ -121,7 +121,7 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
-        # pulse and acc neuron types on every core + many different bias neuron prifiles with varying axon delays
+        # instant and accumulating current types on every core + many different bias neuron prifiles with varying axon delays
         self.compartment_profiles_on_core = np.ones((128)) * 2 
         self.incoming_synapses_on_core = np.zeros((128))
         self.outgoing_synapses_on_core = np.zeros((128))
@@ -190,7 +190,7 @@ class Network:
             for neuron in layer.neurons_without_bias():
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0, tEpoch=63)
                 pulse_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, compartmentCurrentDecay=4095, tEpoch=63)
-                loihi_neuron = net.createCompartment(acc_proto) if neuron.loihi_type == Neuron.acc else net.createCompartment(pulse_proto)
+                loihi_neuron = net.createCompartment(acc_proto) if neuron.current_type == Neuron.accumulation else net.createCompartment(pulse_proto)
                 neuron.loihi_neuron = loihi_neuron
                 if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(full_measurements))
             for neuron in layer.bias_neurons:
