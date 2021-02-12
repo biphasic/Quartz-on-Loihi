@@ -18,8 +18,18 @@ from collections import defaultdict
 
 
 class Network:
-    def __init__(self, t_max, layers, name=''):
-        self.name = name
+    """
+    Network is similar to the keras Sequential class and will store all the information about layers. 
+    By passing the inputs, the model will be compiled using nxSDK and run on Loihi.
+    
+    Args:
+        t_max: the number of time steps to encode the value of 1. Higher t_max means more fine-grained resolution, but also slower execution on Loihi. Use powers of 2
+        layers: a list of quartz.layer objects with respective parameters.
+        
+    Returns:
+        model - the higher level connected model that can be used for inspection of connections and parameters. Not yet compiled for Loihi
+    """
+    def __init__(self, t_max, layers):
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         self.layers = layers
@@ -97,9 +107,6 @@ class Network:
     
     def n_outgoing_connections(self):
         return sum([layer.n_outgoing_connections() for layer in self.layers])
-    
-    def n_recurrent_connections(self):
-        return sum([layer.n_recurrent_connections() for layer in self.layers])
 
     def check_vth_mants(self):
         for layer in self.layers:
@@ -135,7 +142,7 @@ class Network:
 
         # check number of incoming synapses for every neuron
         core_id = 0
-        layer_limits = defaultdict(lambda: 45)
+        layer_limits = defaultdict(lambda: 1000)
 #         layer_limits[0] = 250
 #         layer_limits[2] = 400
         for i, layer in enumerate(self.layers[1:]):

@@ -3,6 +3,18 @@ import numpy as np
 
 
 class Block:
+    """
+    A block defines a group of neurons. A block can connect to another block or a single neuron, using weight, delay and weight exponent matrices. 
+    Will keep track of number of incoming and outgoing synapses. 
+    
+    Args:
+        neurons: list of neurons that belong to the block. flattened dimensions should be equal to weight/delay matrix
+        name: layer name. 
+        monitor: flag that decides whether all neurons in the block are probed. Usually set by quartz.probe
+        
+    Returns:
+        block object that can define connections in a fast and memory efficient way.
+    """
     def __init__(self, neurons, name=None, monitor=False):
         self.neurons = neurons
         self.name = name
@@ -24,6 +36,18 @@ class Block:
 
 
 class Neuron:
+    """
+    A neuron is a unit that has been converted from the ANN model. A neuron can be of type pulse (instant input current decay) 
+    or accumulation (no current decay) and can connect to another neuron or a block.
+    
+    Args:
+        type: can be input, output, bias, sync or rectifier. Little significance for the model, but interesting when compiling to backend.
+        loihi_type: layer name. 
+        monitor: flag that decides whether all neurons in the block are probed. Usually set by quartz.probe
+        
+    Returns:
+        block object that can define connections in a fast and memory efficient way.
+    """
     input, output, bias, sync, rectifier = range(5)
     pulse, acc = range(2)
 

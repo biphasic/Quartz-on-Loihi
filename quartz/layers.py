@@ -6,9 +6,22 @@ import ipdb
 
 
 class Layer:
-    def __init__(self, name, weight_e=30, weight_acc=255, t_min=1, t_neu=1, monitor=False):
+    """
+    A layer in Quartz is a higher level representation of connections between layers in the model, before being compiled to a backend. The connections can happen between individual neurons in the case of single weights, or blocks of neurons in the case of weight matrices.
+    
+    Args:
+        name: layer name. 
+        weight_acc: should be set to the maximum weight resolution of the backend. Higher number gives more fine-grained weight resolution.
+        t_min: the number of time steps that encode the value of zero. Since this framework uses inter spike intervals, even zeros have to be encoded (for the inputs).
+        t_neu: the number of time steps it takes for a neuron to spike. 
+        monitor: flag that decides whether all neurons in the layer are probed. Usually set by quartz.probe
+        
+    Returns:
+        layer object which will be automatically connected to previous layer and performs automatic checks on input/output dimensions.
+    """
+    def __init__(self, name, weight_acc=255, t_min=1, t_neu=1, monitor=False):
         self.name = name
-        self.weight_e = weight_e
+        self.weight_e = 30
         self.weight_acc = weight_acc
         self.t_min = t_min
         self.t_neu = t_neu
@@ -47,9 +60,6 @@ class Layer:
     def n_outgoing_connections(self):
         return sum([np.sum(connection[1]!=0) for block in self.blocks for connection in block.connections])\
                 + sum([len(neuron.synapses) for neuron in self.neurons()])
-
-    def n_recurrent_connections(self):
-        return sum([block.n_recurrent_connections() for block in self.blocks])
 
     def __repr__(self):
         return self.name
@@ -128,7 +138,7 @@ class Dense(Layer):
                     self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(b), type=Neuron.bias)]
                     source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.max_axonal_delay)
                     source = self.bias_neurons[-1]
-                    delay -= self.max_axonal_delay+1
+                    delay -= self.max_axonal_delay+self.t_neu
                 source.connect_to(self.output_neurons[b], bias_sign*self.weight_acc, 0, delay)
 
         if self.rectifying:
@@ -208,7 +218,7 @@ class Conv2D(Layer):
                         self.bias_neurons += [Neuron(name=self.name+"bias-{}:".format(output_channel), type=Neuron.bias)]
                         source.connect_to(self.bias_neurons[-1], self.weight_e, 0, self.max_axonal_delay)
                         source = self.bias_neurons[-1]
-                        delay -= self.max_axonal_delay+1
+                        delay -= self.max_axonal_delay+self.t_neu
                     weight_sums[output_channel, :] -= bias_sign
                 
                 for i in range(np.product(side_lengths)): # loop through all units in the output channel
