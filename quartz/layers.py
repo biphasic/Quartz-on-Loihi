@@ -7,7 +7,7 @@ import ipdb
 
 class Layer:
     """
-    A layer in Quartz is a parent class for all layers in the model, before being compiled to a backend. The connections can happen between individual neurons in the case of single weights, or blocks of neurons in the case of weight matrices.
+    Parent class for all layers in the model, before being compiled to a backend. The connections can happen between individual neurons in the case of single weights, or blocks of neurons in the case of weight matrices.
     
     Args:
         name: layer name. 
@@ -141,7 +141,6 @@ class Dense(Layer):
         weight_sums = [-sum(weights[output,:]) - np.sign(biases[output]) + 1 for output in range(self.output_dims)]
         clipped = np.clip(weight_sums, -1, 1)
         sync_block.connect_to(layer_neuron_block, np.array(clipped).reshape(len(weight_sums), len(self.sync_neurons))*self.weight_acc, 0, 0)
-#         print("sync block connection shape: " + str(np.array(clipped).reshape(len(weight_sums), 1).shape))
         while np.sum(weight_sums - clipped) != 0:
             weight_sums = weight_sums - clipped
             clipped = np.clip(weight_sums, -1, 1)
