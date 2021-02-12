@@ -4,6 +4,7 @@
 
 static int numNeuronsPerCore = 1024;
 static int NUM_Y_TILES = 5;
+static int logNumber = 0;
 
 //extern int numCores;
 extern int resetInterval;
@@ -45,5 +46,10 @@ void reset(runState *RunState) {
         nx_fast_init32(nc->dendrite_accum, 8192, 0);
     }
 
-    LOG("Done resetting cx_state and dendrite_accum. %d\n", RunState->time_step);
+    logNumber += 1;
+    if (logNumber % 100 == 0){
+        LOG("QUARTZ: Done resetting cx_state and dendrite_accum. %d\n", RunState->time_step);
+        logNumber = 0;
+    }
+    
 }

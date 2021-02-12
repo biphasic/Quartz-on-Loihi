@@ -19,6 +19,6 @@ void set_init_values(runState *s) {
     readChannel(channelID, &resetInterval, 1);
     //readChannel(channelID, &enableReset, 1);
 
-    LOG("QUARTZ: resetInterval=%d \n", resetInterval);
+    LOG("QUARTZ: reset interval=%d, log interval=100\n", resetInterval);
 }
 

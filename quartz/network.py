@@ -24,10 +24,10 @@ class Network:
         self.t_max = t_max
         self.layers = layers
         if len(self.layers) > 5:
-            for i in tqdm(range(1, len(self.layers)), unit='layer'): # skip first layer
+            for i in tqdm(range(1, len(self.layers)), unit='layer'):
                 self.layers[i].connect_from(self.layers[i-1], t_max)
         else:
-            for i in range(1, len(self.layers)): # skip first layer
+            for i in range(1, len(self.layers)):
                 self.layers[i].connect_from(self.layers[i-1], t_max)
         # assign vth_mants according to t_max
         self.check_vth_mants()
@@ -37,7 +37,7 @@ class Network:
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
         n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
-        self.steps_per_image = int((n_layers+0.9)*self.t_max)
+        self.steps_per_image = int((n_layers+0.9)*self.t_max) # add a fraction of t_max at the end in case of non-rectifying last layer
         run_time = self.steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image)
         self.data = []
@@ -135,7 +135,7 @@ class Network:
 
         # check number of incoming synapses for every neuron
         core_id = 0
-        layer_limits = defaultdict(lambda: 50)
+        layer_limits = defaultdict(lambda: 45)
 #         layer_limits[0] = 250
 #         layer_limits[2] = 400
         for i, layer in enumerate(self.layers[1:]):
