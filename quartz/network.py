@@ -94,6 +94,9 @@ class Network:
         # compile the whole thing and return board
         if self.logging: print("{} Compiling model...".format(datetime.datetime.now()))
         board = nx.N2Compiler().compile(net)
+        # print some tracked neurons
+        for ID in self.tracker_ids:
+            print(net.resourceMap.compartment(ID))
         return board
 
     def n_output_compartments(self):
@@ -119,7 +122,6 @@ class Network:
                 if block.monitor: block.probe.t_max = self.t_max
 
     def check_layout(self):
-        self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
         self.biases_on_core = np.zeros((128))
         max_profiles_per_core = 32
@@ -128,33 +130,47 @@ class Network:
         max_incoming_axons_per_core = 4096
         max_outgoing_axons_per_core = 4096
 
-        core_id = 0
         self.layers[0].n_cores = 0
-        for i, layer in enumerate(self.layers[1:]):
-            n_cores_biases = len(layer.bias_neurons)+2 / max_profiles_per_core
+        for i, layer in enumerate(self.layers):
+            if i == 0: 
+                layer.n_cores = 0
+                continue
+            n_cores_biases = (len(layer.bias_neurons)+2) / max_profiles_per_core
             n_cores_cxs = len(layer.neurons()) / max_cx_per_core
             n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
-            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i].blocks]) * self.layers[i].n_cores / 2 / max_incoming_axons_per_core
+            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / 2 / max_incoming_axons_per_core
             layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
-            n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
-            n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
-            print("Layer {0:1.0f}: {1:1.0f} cores for biases, {2:1.0f} cores for compartments, {3:1.0f} cores for synapses, {4:1.0f} cores for incoming axons, choosing {5:1.0f}."\
-                  .format(i+1, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
+            layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
+            layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
+            if self.logging:
+                print("Layer {0:1.0f}: {1:1.0f} cores for biases, {2:1.0f} cores for compartments, {3:1.0f} cores for synapses, {4:1.0f} cores for incoming axons, choosing {5:1.0f}."\
+                      .format(i+1, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
             
+            n_cores_outgoing_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * layer.n_cores / 6 / max_outgoing_axons_per_core
+            if n_cores_outgoing_axons > self.layers[i-1].n_cores:
+                self.layers[i-1].n_cores = math.ceil(n_cores_outgoing_axons)
+                self.layers[i-1].n_cx_per_core = math.ceil(len(self.layers[i-1].neurons()) / self.layers[i-1].n_cores)
+                self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
+                if self.logging:
+                    print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
+            
+        core_id = 0
+        for i, layer in enumerate(self.layers[1:]):
             bias_core_id = core_id
             for neuron in layer.bias_neurons:
-                if self.biases_on_core[bias_core_id] + 1 > n_bias_per_core: bias_core_id += 1
+                if self.biases_on_core[bias_core_id] + 1 > layer.n_bias_per_core: bias_core_id += 1
                 neuron.core_id = bias_core_id
                 self.compartments_on_core[bias_core_id] += 1
                 self.biases_on_core[bias_core_id] += 1
             for neuron in layer.neurons_without_bias():
-                if self.compartments_on_core[core_id] + 1 > n_cx_per_core: core_id += 1
+                if self.compartments_on_core[core_id] + 1 > layer.n_cx_per_core: core_id += 1
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
             core_id += 1
             
-        print("Number of compartments on each core for 1 chip:")
-        print(self.compartments_on_core.reshape(16,8))
+        if self.logging:
+            print("Number of compartments on each core for 1 chip:")
+            print(self.compartments_on_core.reshape(16,8))
 #         print("Number of biases on each core for 1 chip:")
 #         print(self.biases_on_core.reshape(16,8))
         
@@ -175,12 +191,14 @@ class Network:
                 block_group.addSpikeInputPort(neuron.loihi_neuron)
             block.loihi_block = block_group
 
+        self.tracker_ids = []
         # subsequent layers
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.neurons_without_bias():
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0, tEpoch=63)
                 pulse_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.weight_e - 1, compartmentCurrentDecay=4095, tEpoch=63)
                 loihi_neuron = net.createCompartment(acc_proto) if neuron.current_type == Neuron.accumulation else net.createCompartment(pulse_proto)
+#                 if "sync" in neuron.name or "rectifier" in neuron.name: self.tracker_ids.append(loihi_neuron.nodeId)
                 neuron.loihi_neuron = loihi_neuron
                 if neuron.monitor: neuron.probe.set_loihi_probe(loihi_neuron.probe(full_measurements))
             for neuron in layer.bias_neurons:
