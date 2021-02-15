@@ -121,52 +121,42 @@ class Network:
     def check_layout(self):
         self.core_ids = np.zeros((128))
         self.compartments_on_core = np.zeros((128))
-        # instant and accumulating current types on every core + many different bias neuron prifiles with varying axon delays
-        self.compartment_profiles_on_core = np.ones((128)) * 2 
-        self.incoming_synapses_on_core = np.zeros((128))
-        self.outgoing_synapses_on_core = np.zeros((128))
+        self.biases_on_core = np.zeros((128))
         max_profiles_per_core = 32
         max_cx_per_core = 1024
+        max_synapses_per_core = 6000
         max_incoming_axons_per_core = 4096
         max_outgoing_axons_per_core = 4096
-        # place bias neurons that have different cx config due to axon delays
-        core_id = 0
-        for i, layer in enumerate(self.layers[1:]):
-            for neuron in layer.bias_neurons:
-                if self.compartment_profiles_on_core[core_id] + 1 >= max_profiles_per_core:
-                    core_id += 1
-                neuron.core_id = core_id
-                self.compartment_profiles_on_core[core_id] += 1
-                self.compartments_on_core[core_id] += 1
-                self.outgoing_synapses_on_core[core_id] += 1
 
-        # check number of incoming synapses for every neuron
         core_id = 0
-        layer_limits = defaultdict(lambda: 1000)
-#         layer_limits[0] = 250
-#         layer_limits[2] = 400
+        self.layers[0].n_cores = 0
         for i, layer in enumerate(self.layers[1:]):
-            max_cx_per_core = layer_limits[i]
+            n_cores_biases = len(layer.bias_neurons)+2 / max_profiles_per_core
+            n_cores_cxs = len(layer.neurons()) / max_cx_per_core
+            n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
+            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i].blocks]) * self.layers[i].n_cores / 2 / max_incoming_axons_per_core
+            layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
+            n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
+            n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
+            print("Layer {0:1.0f}: {1:1.0f} cores for biases, {2:1.0f} cores for compartments, {3:1.0f} cores for synapses, {4:1.0f} cores for incoming axons, choosing {5:1.0f}."\
+                  .format(i+1, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
+            
+            bias_core_id = core_id
+            for neuron in layer.bias_neurons:
+                if self.biases_on_core[bias_core_id] + 1 > n_bias_per_core: bias_core_id += 1
+                neuron.core_id = bias_core_id
+                self.compartments_on_core[bias_core_id] += 1
+                self.biases_on_core[bias_core_id] += 1
             for neuron in layer.neurons_without_bias():
-                if core_id >= 127:
-                    print(self.core_ids)
-                    print(self.compartments_on_core)
-                    raise NotImplementedError("Too many neurons for one Loihi chip")
-                while self.compartments_on_core[core_id] + 1 > max_cx_per_core:
-#                     or self.outgoing_synapses_on_core[core_id] + neuron.n_outgoing_synapses > max_outgoing_axons_per_core\
-#                     or self.incoming_synapses_on_core[core_id] + neuron.n_incoming_synapses > max_incoming_axons_per_core:
-                    core_id += 1
-                self.core_ids[core_id] = i
+                if self.compartments_on_core[core_id] + 1 > n_cx_per_core: core_id += 1
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
-                self.outgoing_synapses_on_core[core_id] += neuron.n_outgoing_synapses
-                self.incoming_synapses_on_core[core_id] += neuron.n_incoming_synapses
-        if self.logging:
-#             print(self.compartment_profiles_on_core)
-            print("Number of compartments on each core for 1 chip:")
-            print(self.compartments_on_core)
-    #         print(self.outgoing_synapses_on_core)
-    #         print(self.incoming_synapses_on_core)
+            core_id += 1
+            
+        print("Number of compartments on each core for 1 chip:")
+        print(self.compartments_on_core.reshape(16,8))
+#         print("Number of biases on each core for 1 chip:")
+#         print(self.biases_on_core.reshape(16,8))
         
     def create_compartments(self):
         net = nx.NxNet()
