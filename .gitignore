@@ -1,5 +1,5 @@
+cifar-convnet.pth
 *.txt
-*.pth
 mnist_data
 data
 runs

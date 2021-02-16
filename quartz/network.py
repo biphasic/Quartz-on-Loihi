@@ -130,7 +130,6 @@ class Network:
         max_incoming_axons_per_core = 4096
         max_outgoing_axons_per_core = 4096
 
-        self.layers[0].n_cores = 0
         for i, layer in enumerate(self.layers):
             if i == 0: 
                 layer.n_cores = 0
@@ -142,18 +141,14 @@ class Network:
             layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
-            if self.logging:
-                print("Layer {0:1.0f}: {1:1.0f} cores for biases, {2:1.0f} cores for compartments, {3:1.0f} cores for synapses, {4:1.0f} cores for incoming axons, choosing {5:1.0f}."\
-                      .format(i+1, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
-            
+#             print("Layer {0:1.0f}: {1:1.0f} cores for biases, {2:1.0f} cores for compartments, {3:1.0f} cores for synapses, {4:1.0f} cores for incoming axons, choosing {5:1.0f}."\
+#                   .format(i, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
             n_cores_outgoing_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * layer.n_cores / 6 / max_outgoing_axons_per_core
             if n_cores_outgoing_axons > self.layers[i-1].n_cores:
                 self.layers[i-1].n_cores = math.ceil(n_cores_outgoing_axons)
                 self.layers[i-1].n_cx_per_core = math.ceil(len(self.layers[i-1].neurons()) / self.layers[i-1].n_cores)
                 self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
-                if self.logging:
-                    print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
-            
+#                 print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
             bias_core_id = core_id
@@ -167,12 +162,9 @@ class Network:
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
             core_id += 1
-            
-        if self.logging:
-            print("Number of compartments on each core for 1 chip:")
-            print(self.compartments_on_core.reshape(16,8))
-#         print("Number of biases on each core for 1 chip:")
-#         print(self.biases_on_core.reshape(16,8))
+#         if self.logging:
+#             print("Number of compartments on each core for 1 chip:")
+#             print(self.compartments_on_core.reshape(16,8))
         
     def create_compartments(self):
         net = nx.NxNet()
@@ -232,9 +224,6 @@ class Network:
                     if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
                         conn_prototypes[0] = conn_prototypes[1]
                         proto_map = np.zeros_like(weights).astype(int)
-#                     print(block, target)
-#                     print(len(block.neurons))
-#                     print(weights.shape)
                     if isinstance(target, quartz.components.Neuron) and target.loihi_block is None: # an nxSDK compGroup can only connect to another group
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)
                         loihi_block.addCompartments(target.loihi_neuron)
