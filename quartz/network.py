@@ -47,7 +47,8 @@ class Network:
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
         n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
-        self.steps_per_image = int((n_layers+0.9)*self.t_max) # add a fraction of t_max at the end in case of non-rectifying last layer
+        time_add = 0.9 if (not isinstance(self.layers[-1], quartz.layers.MaxPool2D) and not self.layers[-1].rectifying) else 0
+        self.steps_per_image = int((n_layers+time_add)*self.t_max + 2*n_layers) # add a fraction of t_max at the end in case of non-rectifying last layer
         run_time = self.steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image)
         self.data = []
