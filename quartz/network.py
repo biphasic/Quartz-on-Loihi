@@ -41,16 +41,38 @@ class Network:
                 self.layers[i].connect_from(self.layers[i-1], t_max)
         # assign vth_mants according to t_max
         self.check_vth_mants()
-        
+
+    def n_output_compartments(self):
+        return sum([layer.n_output_compartments() for layer in self.layers])
+    
+    def n_bias_compartments(self):
+        return sum([layer.n_bias_compartments() for layer in self.layers])
+
+    def n_parameters(self):
+        return sum([layer.n_parameters() for layer in self.layers])
+    
+    def n_outgoing_connections(self):
+        return sum([layer.n_outgoing_connections() for layer in self.layers])
+
+    def check_vth_mants(self):
+        for layer in self.layers:
+            layer.vth_mant = 2**np.log2(self.t_max*layer.weight_acc)
+
+    def set_probe_t_max(self):
+        for layer in self.layers:
+            if layer.monitor: layer.probe.t_max = self.t_max
+            for block in layer.blocks:
+                if block.monitor: block.probe.t_max = self.t_max
+
     def __call__(self, inputs, profiling=False, logging=False, partition='loihi'):
         np.set_printoptions(suppress=True)
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
         n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
         time_add = 0.9 if (not isinstance(self.layers[-1], quartz.layers.MaxPool2D) and not self.layers[-1].rectifying) else 0
-        self.steps_per_image = int((n_layers+time_add)*self.t_max + 2*n_layers) # add a fraction of t_max at the end in case of non-rectifying last layer
+        self.steps_per_image = int((n_layers+time_add)*self.t_max + 2*n_layers) # add a fraction of t_max (time_add) at the end in case of non-rectifying last layer
         run_time = self.steps_per_image*batch_size
-        input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image)
+        input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image) # use latency encoding
         self.data = []
         self.logging = logging
         if not logging: set_verbosity(LoggingLevel.ERROR)
@@ -100,56 +122,41 @@ class Network:
             print(net.resourceMap.compartment(ID))
         return board
 
-    def n_output_compartments(self):
-        return sum([layer.n_output_compartments() for layer in self.layers])
-    
-    def n_bias_compartments(self):
-        return sum([layer.n_bias_compartments() for layer in self.layers])
-
-    def n_parameters(self):
-        return sum([layer.n_parameters() for layer in self.layers])
-    
-    def n_outgoing_connections(self):
-        return sum([layer.n_outgoing_connections() for layer in self.layers])
-
-    def check_vth_mants(self):
-        for layer in self.layers:
-            layer.vth_mant = 2**np.log2(self.t_max*layer.weight_acc)
-
-    def set_probe_t_max(self):
-        for layer in self.layers:
-            if layer.monitor: layer.probe.t_max = self.t_max
-            for block in layer.blocks:
-                if block.monitor: block.probe.t_max = self.t_max
-
     def check_layout(self):
         self.compartments_on_core = np.zeros((128))
         self.biases_on_core = np.zeros((128))
+        # since we are using axon delays for bias neurons, we need as many compartment profiles as biases in our model
         max_profiles_per_core = 32
         max_cx_per_core = 1024
-        max_synapses_per_core = 6000
+        max_synapses_per_core = 6000 # this number should be higher
         max_incoming_axons_per_core = 4096
         max_outgoing_axons_per_core = 4096
 
+        # evaluate how many cores are needed for each layer based on the constraints for each core
         for i, layer in enumerate(self.layers):
             if i == 0: 
                 layer.n_cores = 0
                 continue
-            n_cores_biases = (len(layer.bias_neurons)+2) / max_profiles_per_core
+            n_cores_biases = (len(layer.bias_neurons)+2) / max_profiles_per_core # the +2 is for profiles from non bias neurons
             n_cores_cxs = len(layer.neurons()) / max_cx_per_core
             n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
-            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / 2 / max_incoming_axons_per_core
+            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / 2 / max_incoming_axons_per_core # division by 2 is a simple heuristic
             layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
 #             print("Layer {0:1.0f}: {1:1.0f} cores for biases, {2:1.0f} cores for compartments, {3:1.0f} cores for synapses, {4:1.0f} cores for incoming axons, choosing {5:1.0f}."\
 #                   .format(i, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
-            n_cores_outgoing_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * layer.n_cores / 6 / max_outgoing_axons_per_core
+
+            # if we spread out the current layer over too many cores, then the previous layer will have a problem with the number of output axons. 
+            # We'll therefore also increase the number of cores for the previous layer
+            n_cores_outgoing_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * layer.n_cores / 6 / max_outgoing_axons_per_core # division by 6 is a simple heuristic
             if n_cores_outgoing_axons > self.layers[i-1].n_cores:
                 self.layers[i-1].n_cores = math.ceil(n_cores_outgoing_axons)
                 self.layers[i-1].n_cx_per_core = math.ceil(len(self.layers[i-1].neurons()) / self.layers[i-1].n_cores)
                 self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
 #                 print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
+
+        # distribute neurons equally across number of cores per layer
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
             bias_core_id = core_id
@@ -185,7 +192,7 @@ class Network:
             block.loihi_block = block_group
 
         self.tracker_ids = []
-        # subsequent layers
+        # create neurons for all subsequent layers
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.neurons_without_bias():
                 acc_proto = nx.CompartmentPrototype(logicalCoreId=neuron.core_id, vThMant=layer.vth_mant, compartmentCurrentDecay=0, tEpoch=63)
@@ -287,11 +294,6 @@ class Network:
         if profiling:
             self.power_stats = board.energyTimeMonitor.powerProfileStats
             print(self.power_stats)
-
-    def print_core_layout(self, redo=True):
-        if redo: self.check_layout()
-        print(self.core_ids)
-        print(self.compartments_on_core)
 
     def __repr__(self):
         print("layer name   \t  n_comp n_bias  n_param    n_conn")
