@@ -19,7 +19,7 @@ class Layer:
     Returns:
         layer object which will be automatically connected to previous layer and performs automatic checks on input/output dimensions.
     """
-    def __init__(self, name, weight_acc=255, t_min=1, t_neu=1, monitor=False):
+    def __init__(self, name, weight_acc=254, t_min=1, t_neu=1, monitor=False):
         self.name = name
         self.weight_e = 30
         self.weight_acc = weight_acc
@@ -111,9 +111,7 @@ class Dense(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
-        weight_precision = 128
-#         weights = (weights*self.weight_acc).round()/self.weight_acc
-        weights = (weights*weight_precision).round()/weight_precision
+        weights = (weights*self.weight_acc*2).round()/self.weight_acc/2
         assert weights.shape[1] == len(prev_layer.output_neurons)
         if biases is not None: assert weights.shape[0] == biases.shape[0]
 
@@ -134,19 +132,17 @@ class Dense(Layer):
         output_block = Block(neurons=prev_layer.output_neurons, name=prev_layer.name+"dense-block")
         prev_layer.blocks += [output_block]
         # connections between layers
-        output_block.connect_to(layer_neuron_block, self.weights*self.weight_acc, 0, 0)
+        output_block.connect_to(layer_neuron_block, weights*self.weight_acc, 0, 0)
+        ipdb.set_trace()
         
         # balancing connections from sync neuron for this layer
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         if biases is None: biases = np.zeros((self.output_dims))
-        weight_sums = np.array([(1-sum(weights[output,:]) - np.sign(biases[output]))*self.weight_acc for output in range(self.output_dims)])
-        print(weight_sums)
+        weight_sums = np.array([(1-sum(weights[output,:]) - np.sign(biases[output]))*self.weight_acc for output in range(self.output_dims)]).astype(int)
         weight_sum_base = np.right_shift(weight_sums, 6)
-        weight_sum_precision = np.bitwise_and(weight_sums, 0b111111) # [weight_sum & 0b111111 for weight_sum in weight_sums] 
-        ipdb.set_trace()
-        
+        weight_sum_precision = np.bitwise_and(weight_sums, 0b111111)
         sync_block.connect_to(layer_neuron_block, np.array(weight_sum_base).reshape(len(weight_sums), len(self.sync_neurons)), 6, 0)
-        sync_block.connect_to(layer_neuron_block, np.array(weight_sum_base).reshape(len(weight_sums), len(self.sync_neurons)), 0, 0)
+        sync_block.connect_to(layer_neuron_block, np.array(weight_sum_precision).reshape(len(weight_sums), len(self.sync_neurons)), 0, 0)
         self.blocks += [sync_block]
         
         # connect biases
