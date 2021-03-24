@@ -40,7 +40,7 @@ class TestLayers(unittest.TestCase):
         self.assertEqual(len(loihi_output.flatten()), len(model_output.flatten()))
         combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         for (out, ideal) in combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=2)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05)
 
 
     @parameterized.expand([
@@ -78,7 +78,7 @@ class TestLayers(unittest.TestCase):
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if 0 < ideal < 1: self.assertAlmostEqual(out, ideal, places=2)
+            if 0 < ideal < 1: self.assertAlmostEqual(out, ideal, delta=0.05)
 
             
     @parameterized.expand([
@@ -143,4 +143,4 @@ class TestLayers(unittest.TestCase):
         output_combinations = list(zip(loihi_output.flatten(), model_output.flatten()))
         #print(output_combinations)
         for (out, ideal) in output_combinations:
-            if ideal <= 1: self.assertAlmostEqual(out, ideal, places=1)
+            if ideal <= 1: self.assertAlmostEqual(out, ideal, delta=0.05)

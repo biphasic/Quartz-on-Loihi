@@ -70,7 +70,7 @@ class Network:
         # figure out presentation time for 1 sample and overall run time
         n_layers = len([layer for layer in self.layers if not isinstance(layer, quartz.layers.MaxPool2D)])
         time_add = 0.9 if (not isinstance(self.layers[-1], quartz.layers.MaxPool2D) and not self.layers[-1].rectifying) else 0
-        self.steps_per_image = int((n_layers+time_add)*self.t_max + 2*n_layers) # add a fraction of t_max (time_add) at the end in case of non-rectifying last layer
+        self.steps_per_image = int((n_layers+time_add)*self.t_max + 2*n_layers + 1) # add a fraction of t_max (time_add) at the end in case of non-rectifying last layer
         run_time = self.steps_per_image*batch_size
         input_spike_list = quartz.decode_values_into_spike_input(inputs, self.t_max, self.steps_per_image) # use latency encoding
         self.data = []
@@ -222,7 +222,7 @@ class Network:
             for block in layer.blocks:
                 for target, weights, exponent, delays in block.connections:
                     mask = np.array(weights != 0)
-                    prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=1)
+                    prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=1, compressionMode=3)
                     if isinstance(target, quartz.components.Neuron) and target.loihi_block is None: # an nxSDK compGroup can only connect to another group
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)
                         loihi_block.addCompartments(target.loihi_neuron)
@@ -232,7 +232,7 @@ class Network:
                 for target, weight, exponent, delay in neuron.synapses:
                     if weight != 0:
                         if neuron.type == Neuron.bias: delay = 0 # axon delay already defined in cx prototype
-                        prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=1)#2 if weight >= 0 else 3)
+                        prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=1)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
                 neuron.loihi_block = None # reset for next run with same model
         return net
