@@ -140,8 +140,10 @@ class Dense(Layer):
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
         if biases is None: biases = np.zeros((self.output_dims))
         weight_sums = np.array([(1 - sum(weights[output,:]) - np.sign(biases[output]))*self.weight_acc for output in range(self.output_dims)]).round().astype(int)
-        weight_sum_base = np.right_shift(abs(weight_sums), 6) * np.sign(weight_sums) # most significant bits of counter weight
-        weight_sum_precision = np.bitwise_and(abs(weight_sums), 0b111111) * np.sign(weight_sums) # least significant bits
+        # most significant bits of counter weight minus 1 because 7 bit weight precision
+        weight_sum_base = np.left_shift(np.right_shift(abs(weight_sums), 7), 1) * np.sign(weight_sums) 
+        # least 7 significant bits (6 for weight exponent + 1 lost one)
+        weight_sum_precision = np.bitwise_and(abs(weight_sums), 0b1111111) * np.sign(weight_sums) 
         assert (weight_sum_base * 2**6 + weight_sum_precision == weight_sums).all()
         sync_block.connect_to(layer_neuron_block, np.array(weight_sum_base).reshape(len(weight_sums), len(self.sync_neurons)), 6, 0)
         sync_block.connect_to(layer_neuron_block, np.array(weight_sum_precision).reshape(len(weight_sum_precision), len(self.sync_neurons)), 0, 0)

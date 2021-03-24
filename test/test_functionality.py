@@ -37,15 +37,15 @@ class TestFunctionality(unittest.TestCase):
         ((1,1,1,), 1),
     ])
     def test_weights(self, dim_input, dim_output):
-        t_max = 2**8
+        t_max = 2**7
         np.random.seed(seed=47)
-        weights = np.ones((dim_output,np.product(dim_input))) / 255
+        weights = np.ones((dim_output,np.product(dim_input))) / 127
 
         loihi_model = quartz.Network(t_max, [
             layers.InputLayer(dims=dim_input),
             layers.Dense(weights=weights, biases=None),
         ])
-        values = np.ones((1, *dim_input)) * 255 / 256
+        values = np.ones((1, *dim_input)) * 127 / t_max
         quantized_values = (values*t_max).round()/t_max
 
         pt_model = nn.Sequential(
