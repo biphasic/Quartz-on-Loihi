@@ -223,27 +223,15 @@ class Network:
                 for target, weights, exponent, delays in block.connections:
                     mask = np.array(weights != 0)
                     prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=1)
-#                     conn_prototypes = [nx.ConnectionPrototype(weightExponent=exponent, signMode=2),
-#                                        nx.ConnectionPrototype(weightExponent=exponent, signMode=3),]
-#                     proto_map = np.zeros_like(weights).astype(int)
-#                     proto_map[weights<0] = 1
-                    weights = weights.round()
-                    weights[weights>255] = 255
-                    weights[weights<-255] = -255
-#                     if np.sum(proto_map[proto_map==mask]) == np.sum(mask): # fixes issue when only prototype[1] (negative conns) is used in connections
-#                         conn_prototypes[0] = conn_prototypes[1]
-#                         proto_map = np.zeros_like(weights).astype(int)
                     if isinstance(target, quartz.components.Neuron) and target.loihi_block is None: # an nxSDK compGroup can only connect to another group
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)
                         loihi_block.addCompartments(target.loihi_neuron)
                         target.loihi_block = loihi_block
                     block.loihi_block.connect(target.loihi_block, prototype=prototype, connectionMask=mask, weight=weights, delay=np.array(delays))
-                                             # prototypeMap=proto_map, 
             for neuron in layer.neurons():
                 for target, weight, exponent, delay in neuron.synapses:
                     if weight != 0:
                         if neuron.type == Neuron.bias: delay = 0 # axon delay already defined in cx prototype
-                        if weight>255: weight = 255
                         prototype = nx.ConnectionPrototype(weightExponent=exponent, weight=np.array(weight), delay=np.array(delay), signMode=1)#2 if weight >= 0 else 3)
                         neuron.loihi_neuron.connect(target.loihi_neuron, prototype=prototype)
                 neuron.loihi_block = None # reset for next run with same model
