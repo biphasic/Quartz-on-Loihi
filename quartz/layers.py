@@ -202,7 +202,9 @@ class Conv2D(Layer):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
         weights, biases = self.weights, self.biases
-        weights = (weights*self.weight_acc).round()/self.weight_acc
+        weights = np.ceil(weights*self.weight_acc)
+        weights[weights%2==1] -= 1 # 7 bit weight precision on Loihi with mixed weight coefficients
+        weights /= self.weight_acc
         assert weights.shape[1]*self.groups == prev_layer.output_dims[0]
         if biases is not None: assert weights.shape[0] == biases.shape[0]
         output_channels, input_channels, *kernel_size = self.weights.shape
@@ -282,14 +284,16 @@ class Conv2D(Layer):
         self.blocks += [layer_neuron_block]
 
         # connect sync counter weights
-        weight_sums = weight_sums.flatten() + 1
         sync_block = Block(neurons=self.sync_neurons, name=self.name+"sync-block")
-        clipped = np.clip(weight_sums, -1, 1)
-        sync_block.connect_to(layer_neuron_block, np.array(clipped).reshape(len(weight_sums), len(self.sync_neurons))*self.weight_acc) # change to multiple sync neurons?
-        while np.sum(weight_sums - clipped) != 0:
-            weight_sums = weight_sums - clipped
-            clipped = np.clip(weight_sums, -1, 1)
-            sync_block.connect_to(layer_neuron_block, np.array(clipped).reshape(len(weight_sums), len(self.sync_neurons))*self.weight_acc)
+        if biases is None: biases = np.zeros((self.output_dims))
+        weight_sums = ((weight_sums.flatten() + 1) * self.weight_acc).round().astype(int)
+        # most significant bits of counter weight minus 1 because 7 bit weight precision
+        weight_sum_base = np.left_shift(np.right_shift(abs(weight_sums), 7), 1) * np.sign(weight_sums) 
+        # least 7 significant bits (6 for weight exponent + 1 lost one)
+        weight_sum_precision = np.bitwise_and(abs(weight_sums), 0b1111111) * np.sign(weight_sums) 
+        assert (weight_sum_base * 2**6 + weight_sum_precision == weight_sums).all()
+        sync_block.connect_to(layer_neuron_block, np.array(weight_sum_base).reshape(len(weight_sums), len(self.sync_neurons)), 6, 0)
+        sync_block.connect_to(layer_neuron_block, np.array(weight_sum_precision).reshape(len(weight_sum_precision), len(self.sync_neurons)), 0, 0)
         self.blocks += [sync_block]
 
         if self.rectifying:
