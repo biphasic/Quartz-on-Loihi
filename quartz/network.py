@@ -82,7 +82,10 @@ class Network:
         # create and connect compartments and add input spikes
         board = self.build_model(input_spike_list)
         # use reset snip in case of multiple samples
-        if batch_size > 1: board = self.add_snips(board)
+        if batch_size > 1: 
+            board = self.add_snips(board)
+        else:
+            self.init_channel = None # no snips initialisation
         # execute
         self.run_on_loihi(board, run_time, profiling, partition)
         if profiling:
@@ -140,13 +143,12 @@ class Network:
             n_cores_biases = (len(layer.bias_neurons)+2) / max_profiles_per_core # the +2 is for profiles from non bias neurons
             n_cores_cxs = len(layer.neurons()) / max_cx_per_core
             n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
-            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / max_incoming_axons_per_core # division by 2 is a simple heuristic
+            n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / max_incoming_axons_per_core
             layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
             print("Layer {0:1.0f}: {1:1.1f} cores for biases, {2:1.1f} cores for compartments, {3:1.1f} cores for synapses, {4:1.1f} cores for incoming axons, choosing {5:1.0f}."\
                   .format(i, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
-#             ipdb.set_trace()
 
             # if we spread out the current layer over too many cores, then the previous layer will have a problem with the number of output axons. 
             # We'll therefore also increase the number of cores for the previous layer
@@ -157,6 +159,8 @@ class Network:
                 self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
                 print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
+        self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
+        
         # distribute neurons equally across number of cores per layer
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
@@ -276,10 +280,9 @@ class Network:
             eProbe = board.probe(ProbeParameter.ENERGY, pc)
             self.energy_probe = eProbe
         board.start(partition=partition)
-        try:
+        if self.init_channel is not None:
             self.init_channel.write(1, [self.steps_per_image])
-        except:
-            pass # raise NotImplementedError()
+            self.init_channel.write(1, [self.n_cores])
         board.run(run_time)
         board.disconnect()
         if profiling:

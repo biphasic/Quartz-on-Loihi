@@ -4,6 +4,7 @@
 
 int resetInterval;
 int enableReset;
+int nCores;
 
 static int channelID = -1;
 
@@ -17,8 +18,8 @@ void set_init_values(runState *s) {
     }
 
     readChannel(channelID, &resetInterval, 1);
-    //readChannel(channelID, &enableReset, 1);
+    readChannel(channelID, &nCores, 1);
 
-    LOG("QUARTZ: reset interval=%d, log interval=100\n", resetInterval);
+    LOG("QUARTZ: reset interval=%d, number of cores=%d, log interval=100\n", resetInterval, nCores);
 }
 

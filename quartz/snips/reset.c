@@ -10,9 +10,9 @@ static int logNumber = 0;
 int tImgStart = 0;
 int tImgEnd = 0;
 
-//extern int numCores;
 extern int resetInterval;
 extern int enableReset;
+extern int nCores;
 
 void logicalToPhysicalCoreId(int logicalId, CoreId *physicalId) {
     physicalId->p = logicalId % 4;
@@ -30,17 +30,16 @@ int doReset(runState *RunState) {
 void reset(runState *RunState) {
     NeuronCore *nc;
     CoreId coreId;
-    int numCores = 20;
 
 //     int resetStart = clock();
     
-    for(int i=0; i<numCores; i++) {
+    for(int i=0; i<nCores; i++) {
         logicalToPhysicalCoreId(i, &coreId);
         nc = NEURON_PTR(coreId);
-        nx_fast_init64(nc->cx_state, numNeuronsPerCore, 0);//*(uint64_t*)&cxs);
+        nx_fast_init64(nc->cx_state, numNeuronsPerCore, 0);
     }
     
-    for(int i=0; i<numCores; i++) {
+    for(int i=0; i<nCores; i++) {
         logicalToPhysicalCoreId(i, &coreId);
         nc = NEURON_PTR(coreId);
         nx_fast_init32(nc->dendrite_accum, 8192, 0);
