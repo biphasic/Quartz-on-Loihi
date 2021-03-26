@@ -147,8 +147,8 @@ class Network:
             layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
-            print("Layer {0:1.0f}: {1:1.1f} cores for biases, {2:1.1f} cores for compartments, {3:1.1f} cores for synapses, {4:1.1f} cores for incoming axons, choosing {5:1.0f}."\
-                  .format(i, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
+#             print("Layer {0:1.0f}: {1:1.1f} cores for biases, {2:1.1f} cores for compartments, {3:1.1f} cores for synapses, {4:1.1f} cores for incoming axons, choosing {5:1.0f}."\
+#                   .format(i, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
 
             # if we spread out the current layer over too many cores, then the previous layer will have a problem with the number of output axons. 
             # We'll therefore also increase the number of cores for the previous layer
@@ -157,7 +157,7 @@ class Network:
                 self.layers[i-1].n_cores = math.ceil(n_cores_outgoing_axons)
                 self.layers[i-1].n_cx_per_core = math.ceil(len(self.layers[i-1].neurons()) / self.layers[i-1].n_cores)
                 self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
-                print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
+#                 print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
         self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
         
