@@ -126,8 +126,8 @@ class Network:
         return board
 
     def check_layout(self):
-        self.compartments_on_core = np.zeros((128))
-        self.biases_on_core = np.zeros((128))
+        self.compartments_on_core = np.zeros((128*32))
+        self.biases_on_core = np.zeros((128*32))
         # since we are using axon delays for bias neurons, we need as many compartment profiles as biases in our model
         max_profiles_per_core = 32
         max_cx_per_core = 1024
