@@ -316,6 +316,7 @@ class MaxPool2D(Layer):
     """
     def __init__(self, kernel_size, stride=None, name="maxpool:", **kwargs):
         super(MaxPool2D, self).__init__(name=name, **kwargs)
+        if isinstance(kernel_size, int): kernel_size = (kernel_size, kernel_size)
         self.kernel_size = kernel_size
         self.stride = stride
 
