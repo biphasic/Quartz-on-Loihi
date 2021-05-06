@@ -2,7 +2,6 @@ from quartz.components import Block, Neuron
 import quartz
 from sklearn.feature_extraction import image
 import numpy as np
-import ipdb
 
 
 class Layer:

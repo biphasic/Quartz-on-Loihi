@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import quartz
-import ipdb
 from nxsdk.utils.plotutils import plotProbes
 from quartz.utils import extract_spike_timings, decode_spike_timings
 
