@@ -85,7 +85,8 @@ class Network:
             board = self.add_snips(board)
         else:
             self.init_channel = None # no snips initialisation
-        # execute
+        if self.logging: print("{} Executing model...".format(datetime.datetime.now()))
+        # execute        
         self.run_on_loihi(board, run_time, profiling, partition)
         if profiling:
             return self.energy_probe
@@ -128,7 +129,6 @@ class Network:
         self.compartments_on_core = np.zeros((128*32))
         self.biases_on_core = np.zeros((128*32))
         # since we are using axon delays for bias neurons, we need as many compartment profiles as biases in our model
-        max_profiles_per_core = 32
         max_cx_per_core = 1024
         max_synapses_per_core = 24000 # this number should be higher
         max_incoming_axons_per_core = 4096
@@ -139,15 +139,14 @@ class Network:
             if i == 0: 
                 layer.n_cores = math.ceil(np.product(self.layers[0].output_dims)/max_cx_per_core)
                 continue
-            n_cores_biases = (len(layer.bias_neurons)+2) / max_profiles_per_core # the +2 is for profiles from non bias neurons
             n_cores_cxs = len(layer.neurons()) / max_cx_per_core
             n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
             n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / max_incoming_axons_per_core
-            layer.n_cores = math.ceil(max(n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
+            layer.n_cores = math.ceil(max(n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
-#             print("Layer {0:1.0f}: {1:1.1f} cores for biases, {2:1.1f} cores for compartments, {3:1.1f} cores for synapses, {4:1.1f} cores for incoming axons, choosing {5:1.0f}."\
-#                   .format(i, n_cores_biases, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
+#             print("Layer {0:1.0f}: {2:1.1f} cores for compartments, {3:1.1f} cores for synapses, {4:1.1f} cores for incoming axons, choosing {5:1.0f}."\
+#                   .format(i, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
 
             # if we spread out the current layer over too many cores, then the previous layer will have a problem with the number of output axons. 
             # We'll therefore also increase the number of cores for the previous layer

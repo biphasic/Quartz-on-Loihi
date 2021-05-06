@@ -8,7 +8,6 @@ from torchvision import datasets, transforms
 # from torch.utils.tensorboard import SummaryWriter
 import torchvision
 import matplotlib.pyplot as plt
-import ipdb
 import time
 from functools import partial
 
