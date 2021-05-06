@@ -106,6 +106,14 @@ class Dense(Layer):
         self.rectifying = rectifying
         self.output_dims = weights.shape[0]
 
+    def __repr__(self):
+        s = "{} features_in={}, features_out={}".format(self.name, self.weights.shape[0], self.weights.shape[1])
+        if self.biases is not None:
+            s += ', bias=True'
+        if self.rectifying:
+            s += ', relu=True'
+        return s
+
     def connect_from(self, prev_layer, t_max):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
@@ -195,6 +203,18 @@ class Conv2D(Layer):
         self.padding = padding
         self.groups = groups
         self.rectifying = rectifying
+            
+    def __repr__(self):
+        s = "{} {}, {}, kernel_size={}".format(self.name, self.weights.shape[0], self.weights.shape[1], self.weights.shape[2:])
+        if self.padding != (0,) * len(self.padding):
+            s += ', padding={}'.format(self.padding)
+        if self.groups != 1:
+            s += ', groups={}'.format(self.groups)
+        if self.biases is None:
+            s += ', bias=False'
+        if self.rectifying:
+            s += ', relu=True'
+        return s
 
     def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
@@ -318,6 +338,9 @@ class MaxPool2D(Layer):
         if isinstance(kernel_size, int): kernel_size = (kernel_size, kernel_size)
         self.kernel_size = kernel_size
         self.stride = stride
+            
+    def __repr__(self):
+        return "{} kernel_size={}, stride={}".format(self.name, self.kernel_size, self.stride)
 
     def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
