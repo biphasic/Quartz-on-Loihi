@@ -164,8 +164,6 @@ class Network:
                 self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
                 if self.logging: print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
-        self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
-
     def assign_layout(self, layout):
         if self.logging: print("Assigning core layout...")
         for l, n_cores in enumerate(layout):
@@ -190,6 +188,9 @@ class Network:
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
             core_id += 1
+
+        self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
+
 #         if self.logging:
 #             print("Number of compartments on each core for 1 chip:")
 #             print(self.compartments_on_core.reshape(-1,8))

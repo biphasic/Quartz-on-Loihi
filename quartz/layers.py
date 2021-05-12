@@ -136,7 +136,7 @@ class Dense(Layer):
         # create all output neurons and create self-inhibiting group connection
         self.output_neurons = [Neuron(name=self.name+"relco-n{0:3.0f}:".format(i), current_type=Neuron.accumulation) for i in range(self.weights.shape[0])]
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
+        layer_neuron_block.connect_to(layer_neuron_block, -255*sparse.eye(len(self.output_neurons)).tocoo(), 6, 0)
         self.blocks += [layer_neuron_block]
 
         # group neurons from previous layer
@@ -381,5 +381,5 @@ class MaxPool2D(Layer):
 
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6)
+        layer_neuron_block.connect_to(layer_neuron_block, -255*sparse.eye(len(self.output_neurons)).tocoo(), 6)
         self.blocks += [layer_neuron_block]
