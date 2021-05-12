@@ -166,10 +166,12 @@ class Network:
 
     def assign_layout(self, layout):
         if self.logging: print("Assigning core layout...")
+        layout[0] = 1 # input layer n_cores does not matter
         for l, n_cores in enumerate(layout):
             layer = self.layers[l]
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / n_cores)
+            layer.n_cores = n_cores
 
     def distribute_neurons(self):
         self.compartments_on_core = np.zeros((128*32))
@@ -190,7 +192,6 @@ class Network:
             core_id += 1
 
         self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
-
 #         if self.logging:
 #             print("Number of compartments on each core for 1 chip:")
 #             print(self.compartments_on_core.reshape(-1,8))
