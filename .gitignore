@@ -1,3 +1,4 @@
+*.pth
 cifar-convnet.pth
 *.txt
 mnist_data
