@@ -12,7 +12,6 @@ from nxsdk.api.enums.api_enums import ProbeParameter
 from nxsdk.graph.monitor.probes import PerformanceProbeCondition
 import datetime
 import os
-from tqdm.auto import tqdm
 from collections import defaultdict 
 
 
@@ -28,11 +27,13 @@ class Network:
     Returns:
         model - the higher level connected model that can be used for inspection of connections and parameters. Not yet compiled for Loihi
     """
-    def __init__(self, t_max, layers):
+#     @profile
+    def __init__(self, t_max, layers, verbose=False):
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
         self.layers = layers
-        if len(self.layers) > 5:
+        if verbose:
+            from tqdm.auto import tqdm
             for i in tqdm(range(1, len(self.layers)), unit='layer'):
                 self.layers[i].connect_from(self.layers[i-1], t_max)
         else:
