@@ -1,5 +1,7 @@
 from quartz.components import Neuron
-from quartz.utils import decode_spike_timings, profile
+from quartz.utils import decode_spike_timings
+from quartz.utils import profile_processing
+from memory_profiler import profile
 import quartz
 import numpy as np
 import math
@@ -12,7 +14,8 @@ from nxsdk.api.enums.api_enums import ProbeParameter
 from nxsdk.graph.monitor.probes import PerformanceProbeCondition
 import datetime
 import os
-from collections import defaultdict 
+from collections import defaultdict
+from scipy import sparse
 
 
 class Network:
@@ -64,7 +67,7 @@ class Network:
             for block in layer.blocks:
                 if block.monitor: block.probe.t_max = self.t_max
 
-    def __call__(self, inputs, profiling=False, logging=False, partition='loihi'):
+    def __call__(self, inputs, n_cores_per_layer=None, profiling=False, logging=False, partition='loihi'):
         np.set_printoptions(suppress=True)
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
@@ -80,7 +83,7 @@ class Network:
         if not profiling: output_probe = quartz.probe(self.layers[-1])
         self.set_probe_t_max()
         # create and connect compartments and add input spikes
-        board = self.build_model(input_spike_list)
+        board = self.build_model(input_spike_list, n_cores_per_layer)
         # use reset snip in case of multiple samples
         if batch_size > 1: 
             board = self.add_snips(board)
@@ -109,9 +112,13 @@ class Network:
                 output_array = np.transpose(output_array, (3,0,1,2))
             return output_array
 
-    def build_model(self, input_spike_list):
-        # assign core layout based on no of compartments and no of unique connections
-        self.check_layout()
+    def build_model(self, input_spike_list, n_cores_per_layer):
+        if n_cores_per_layer == None:
+            # assign core layout based on no of compartments and no of unique connections
+            self.check_layout()
+        else:
+            self.assign_layout(n_cores_per_layer)
+        self.distribute_neurons()
         # create loihi compartments
         net = self.create_compartments()
         # connect loihi compartments
@@ -127,8 +134,6 @@ class Network:
         return board
 
     def check_layout(self):
-        self.compartments_on_core = np.zeros((128*32))
-        self.biases_on_core = np.zeros((128*32))
         # since we are using axon delays for bias neurons, we need as many compartment profiles as biases in our model
         max_cx_per_core = 1024
         max_synapses_per_core = 24000 # this number should be higher
@@ -138,16 +143,17 @@ class Network:
         # evaluate how many cores are needed for each layer based on the constraints for each core
         for i, layer in enumerate(self.layers):
             if i == 0: 
-                layer.n_cores = math.ceil(np.product(self.layers[0].output_dims)/max_cx_per_core)
+                layer.n_cores = 1 # math.ceil(np.product(self.layers[0].output_dims)/max_cx_per_core)
                 continue
             n_cores_cxs = len(layer.neurons()) / max_cx_per_core
             n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
             n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / max_incoming_axons_per_core
-            layer.n_cores = math.ceil(max(n_cores_cxs, n_cores_synapses, n_cores_incoming_axons))
+            layer.n_cores = math.ceil(max(n_cores_cxs, n_cores_synapses))
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
-#             print("Layer {0:1.0f}: {2:1.1f} cores for compartments, {3:1.1f} cores for synapses, {4:1.1f} cores for incoming axons, choosing {5:1.0f}."\
-#                   .format(i, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
+            if self.logging: 
+                print("Layer {0:1.0f}: {1:1.1f} cores for compartments, {2:1.1f} cores for synapses, {3:1.1f} cores for incoming axons, choosing {4:1.0f}."\
+                  .format(i, n_cores_cxs, n_cores_synapses, n_cores_incoming_axons, layer.n_cores))
 
             # if we spread out the current layer over too many cores, then the previous layer will have a problem with the number of output axons. 
             # We'll therefore also increase the number of cores for the previous layer
@@ -156,10 +162,20 @@ class Network:
                 self.layers[i-1].n_cores = math.ceil(n_cores_outgoing_axons)
                 self.layers[i-1].n_cx_per_core = math.ceil(len(self.layers[i-1].neurons()) / self.layers[i-1].n_cores)
                 self.layers[i-1].n_bias_per_core = math.ceil(len(self.layers[i-1].bias_neurons) / self.layers[i-1].n_cores)
-#                 print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
+                if self.logging: print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
         self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
-        
+
+    def assign_layout(self, layout):
+        if self.logging: print("Assigning core layout...")
+        for l, n_cores in enumerate(layout):
+            layer = self.layers[l]
+            layer.n_cx_per_core = math.ceil(len(layer.neurons()) / n_cores)
+            layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / n_cores)
+
+    def distribute_neurons(self):
+        self.compartments_on_core = np.zeros((128*32))
+        self.biases_on_core = np.zeros((128*32))
         # distribute neurons equally across number of cores per layer
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
@@ -176,8 +192,8 @@ class Network:
             core_id += 1
 #         if self.logging:
 #             print("Number of compartments on each core for 1 chip:")
-#             print(self.compartments_on_core.reshape(16,8))
-        
+#             print(self.compartments_on_core.reshape(-1,8))
+
     def create_compartments(self):
         net = nx.NxNet()
         full_measurements = [nx.ProbeParameter.SPIKE, nx.ProbeParameter.COMPARTMENT_VOLTAGE, nx.ProbeParameter.COMPARTMENT_CURRENT]
@@ -219,13 +235,16 @@ class Network:
                 layer.probe.set_loihi_probe([neuron.loihi_neuron.probe(spike_counter)[0] for neuron in layer.neurons_without_bias()])
         return net
 
-#     @profile # uncomment to profile model building
+#     @profile_processing # uncomment to profile model building
     def connect_blocks(self, net):
         if self.logging: print("{} Loihi neuron creation done, now connecting...".format(datetime.datetime.now()))
         for l, layer in enumerate(self.layers):
             for block in layer.blocks:
                 for target, weights, exponent, delays in block.connections:
-                    mask = np.array(weights != 0)
+                    if isinstance(weights, sparse.spmatrix):
+                        mask = weights
+                    else:
+                        mask = np.array(weights != 0)
                     prototype = nx.ConnectionPrototype(weightExponent=exponent, signMode=1, compressionMode=3)
                     if isinstance(target, quartz.components.Neuron) and target.loihi_block is None: # an nxSDK compGroup can only connect to another group
                         loihi_block = net.createCompartmentGroup(size=0, name=target.name)

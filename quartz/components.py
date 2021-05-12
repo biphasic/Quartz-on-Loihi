@@ -23,13 +23,13 @@ class Block:
 
     def connect_to(self, target, weight, exponent=0, delay=0):
         self.connections.append((target, weight, exponent, delay))
-        for n, neuron in enumerate(self.neurons):
-            neuron.n_outgoing_synapses += np.sum(weight[:,n] != 0)
-        if isinstance(target, quartz.components.Neuron):
-            target.n_incoming_synapses += np.sum(weight != 0)
-        else: # connect to other block
-            for n, neuron in enumerate(target.neurons):
-                neuron.n_incoming_synapses += np.sum(weight[n,:] != 0)
+#         for n, neuron in enumerate(self.neurons):
+#             neuron.n_outgoing_synapses += np.sum(weight[:,n] != 0)
+#         if isinstance(target, quartz.components.Neuron):
+#             target.n_incoming_synapses += np.sum(weight != 0)
+#         else: # connect to other block
+#             for n, neuron in enumerate(target.neurons):
+#                 neuron.n_incoming_synapses += np.sum(weight[n,:] != 0)
 
     def __repr__(self):
         return self.name

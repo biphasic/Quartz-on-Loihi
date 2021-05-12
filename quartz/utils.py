@@ -61,7 +61,7 @@ def quantize_parameters(weights, biases, weight_acc, t_max):
 def quantize_inputs(inputs, t_max):
     return (inputs*t_max).round()/t_max
 
-def profile(fnc):
+def profile_processing(fnc):
     """A decorator that uses cProfile to profile a function"""
     def inner(*args, **kwargs):
         pr = cProfile.Profile()

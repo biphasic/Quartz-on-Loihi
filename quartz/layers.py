@@ -2,6 +2,8 @@ from quartz.components import Block, Neuron
 import quartz
 from sklearn.feature_extraction import image
 import numpy as np
+from scipy import sparse
+from memory_profiler import profile
 
 
 class Layer:
@@ -176,7 +178,6 @@ class Dense(Layer):
             rectifier_block.connect_to(layer_neuron_block, np.array([251]*len(self.output_neurons)).reshape(len(self.output_neurons),len(self.rectifier_neurons)), 6, 0)
             self.blocks += [rectifier_block]
 
-
 class Conv2D(Layer):
     """
     A convolutional layer with optional relu activation. Weights and biases have to be passed from the model that is being converted. Supports stride, padding, groups. Modeled after [pytorch conv2d](https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html) layer. 
@@ -216,6 +217,7 @@ class Conv2D(Layer):
             s += ', relu=True'
         return s
 
+#     @profile
     def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
@@ -299,7 +301,7 @@ class Conv2D(Layer):
 
         # recurring self-inhibitory connection
         layer_neuron_block = Block(neurons=self.output_neurons, name=self.name+"all-units")
-        layer_neuron_block.connect_to(layer_neuron_block, -255*np.eye(len(self.output_neurons)), 6, 0)
+        layer_neuron_block.connect_to(layer_neuron_block, -255*sparse.eye(len(self.output_neurons)).tocoo(), 6, 0)
         self.blocks += [layer_neuron_block]
 
         # connect sync counter weights
