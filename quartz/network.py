@@ -281,7 +281,7 @@ class Network:
             funcName='set_init_values',
             guardName=None,
             phase=Phase.EMBEDDED_INIT)
-        
+
         reset_snip = board.createSnip(
             name="batch-reset",
             includeDir=snip_dir,
@@ -289,16 +289,16 @@ class Network:
             funcName="reset",
             guardName="doReset", 
             phase=Phase.EMBEDDED_MGMT)
-        
+
         self.init_channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
         self.init_channel.connect(None, init_snip)
         return board
     
     def run_on_loihi(self, board, run_time, profiling, partition):
         if profiling:
-            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=2048, binSize=self.steps_per_image)
-            eProbe = board.probe(ProbeParameter.ENERGY, pc)
-            self.energy_probe = eProbe
+            pc = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=1024, binSize=self.steps_per_image)
+            pc2 = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=2048, binSize=2)
+            self.energy_probe = board.probe(ProbeParameter.ENERGY, pc)
         board.start(partition=partition)
         if self.init_channel is not None:
             self.init_channel.write(1, [self.steps_per_image])
