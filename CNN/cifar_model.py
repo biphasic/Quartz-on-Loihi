@@ -31,13 +31,8 @@ class ConvBNReLU(nn.Sequential):
         super(ConvBNReLU, self).__init__(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups, bias=False),
             nn.BatchNorm2d(out_channels, momentum=0.4),
-            nn.ReLU6(inplace=True))
+            nn.ReLU6())
 
-# def ConvBNReLU(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1):
-#     padding = (kernel_size - 1) // 2
-#     return [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups, bias=False),
-#             nn.BatchNorm2d(out_channels, momentum=0.4),
-#             nn.ReLU6(inplace=True)]
 
 class Bottleneck(nn.Module):
     def __init__(self, in_channels, out_channels, expansion_factor, repeats=1, stride=1):
@@ -52,7 +47,6 @@ class Bottleneck(nn.Module):
         layers += nn.Sequential(
             nn.Conv2d(hidden_dim, out_channels, kernel_size=1, stride=1, bias=False),
             nn.BatchNorm2d(out_channels, momentum=0.4),
-            #nn.ReLU6(),
         )
         self.bottleneck = nn.Sequential(*layers)
 
