@@ -3,7 +3,7 @@ import quartz
 from sklearn.feature_extraction import image
 import numpy as np
 from scipy import sparse
-from memory_profiler import profile
+from memory_profiler import profile as profile_memory
 
 
 class Layer:
@@ -116,6 +116,7 @@ class Dense(Layer):
             s += ', relu=True'
         return s
 
+#     @profile_memory
     def connect_from(self, prev_layer, t_max):
         self.layer_n = prev_layer.layer_n + 1
         self.name = "l{}-{}".format(self.layer_n, self.name)
@@ -217,7 +218,7 @@ class Conv2D(Layer):
             s += ', relu=True'
         return s
 
-#     @profile
+#     @profile_memory
     def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1
@@ -290,7 +291,7 @@ class Conv2D(Layer):
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         receptive_field = input_neurons[patches[input_channel,i,:,:].ravel()]
                         mask = receptive_field != 0
-                        block_patch = Block(neurons=list(receptive_field[mask]), name=prev_layer.name+"patch-c{0:3.0f}-n{1:3.0f}:".format(input_channel, i))
+                        block_patch = Block(neurons=list(receptive_field[mask]))#, name=prev_layer.name+"patch-c{0:3.0f}-n{1:3.0f}:".format(input_channel, i))
                         prev_layer.blocks += [block_patch]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
                         patch_weight_selection = patch_weights[mask]
@@ -344,6 +345,7 @@ class MaxPool2D(Layer):
     def __repr__(self):
         return "{} kernel_size={}, stride={}".format(self.name, self.kernel_size, self.stride)
 
+#     @profile_memory
     def connect_from(self, prev_layer, t_max):
         self.prev_layer = prev_layer
         self.layer_n = prev_layer.layer_n + 1

@@ -1,7 +1,6 @@
 from quartz.components import Neuron
 from quartz.utils import decode_spike_timings
 from quartz.utils import profile_processing
-from memory_profiler import profile
 import quartz
 import numpy as np
 import math
@@ -30,7 +29,6 @@ class Network:
     Returns:
         model - the higher level connected model that can be used for inspection of connections and parameters. Not yet compiled for Loihi
     """
-#     @profile
     def __init__(self, t_max, layers, verbose=False):
         assert np.log2(t_max).is_integer()
         self.t_max = t_max
