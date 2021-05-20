@@ -12,7 +12,7 @@ import time
 from functools import partial
 
 
-def get_accuracy(model, data_loader, device):
+def get_mnist_accuracy(model, data_loader, device):
     correct_pred = 0 
     n = 0
     with torch.no_grad():
@@ -26,7 +26,7 @@ def get_accuracy(model, data_loader, device):
             correct_pred += (predicted_labels == y_true).sum()
     return correct_pred.float() / n
 
-def get_folded_accuracy(model, data_loader, device):
+def get_accuracy(model, data_loader, device):
     correct_pred = 0 
     n = 0
     with torch.no_grad():

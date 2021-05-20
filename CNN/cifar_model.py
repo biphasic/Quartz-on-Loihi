@@ -22,7 +22,7 @@ class MobileNet(nn.Module):
         out = self.features(out)
         logits = self.classifier(out)
         probs = F.softmax(logits, dim=1)
-        return logits, probs
+        return logits#, probs
 
 
 class ConvBNReLU(nn.Sequential):
@@ -31,7 +31,7 @@ class ConvBNReLU(nn.Sequential):
         super(ConvBNReLU, self).__init__(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups, bias=False),
             nn.BatchNorm2d(out_channels, momentum=0.4),
-            nn.ReLU6())
+            nn.ReLU())
 
 
 class Bottleneck(nn.Module):
