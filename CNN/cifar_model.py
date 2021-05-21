@@ -17,12 +17,33 @@ class MobileNet(nn.Module):
             nn.Flatten(),
             nn.Linear(in_features=160, out_features=n_classes),
         )
-
     def forward(self, out):
         out = self.features(out)
         logits = self.classifier(out)
         probs = F.softmax(logits, dim=1)
         return logits#, probs
+
+
+class MobileNetV1(nn.Module):
+    def __init__(self, n_classes):
+        super(MobileNet, self).__init__()        
+        self.features = nn.Sequential(
+            ConvBNReLU(in_channels=3, out_channels=32, kernel_size=3, stride=2),
+            DepthwiseSeparableConv(in_channels=32, out_channels=64),
+            DepthwiseSeparableConv(in_channels=64, out_channels=128, stride=2),
+            DepthwiseSeparableConv(in_channels=128, out_channels=128),
+            DepthwiseSeparableConv(in_channels=128, out_channels=256, stride=2),
+            DepthwiseSeparableConv(in_channels=256, out_channels=256),
+        )
+        self.classifier = nn.Sequential(
+            ConvPool(in_channels=256, out_channels=160, conv_kernel_size=1, pool_kernel_size=4, stride=1),
+            nn.Flatten(),
+            nn.Linear(in_features=160, out_features=n_classes),
+        )
+    def forward(self, out):
+        out = self.features(out)
+        logits = self.classifier(out)
+        return logits
 
 
 class ConvBNReLU(nn.Sequential):
@@ -33,6 +54,12 @@ class ConvBNReLU(nn.Sequential):
             nn.BatchNorm2d(out_channels, momentum=0.4),
             nn.ReLU())
 
+class ConvReLU(nn.Sequential):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1):
+        padding = (kernel_size - 1) // 2
+        super(ConvReLU, self).__init__(
+            nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups),
+            nn.ReLU())
 
 class Bottleneck(nn.Module):
     def __init__(self, in_channels, out_channels, expansion_factor, repeats=1, stride=1):
@@ -42,7 +69,7 @@ class Bottleneck(nn.Module):
         layers = []
         if expansion_factor != 1:
             layers += ConvBNReLU(in_channels, hidden_dim, kernel_size=1, stride=1)
-        layers += ConvBNReLU(hidden_dim, hidden_dim, kernel_size=3, stride=stride, groups=hidden_dim),
+        layers += ConvReLU(hidden_dim, hidden_dim, kernel_size=3, stride=stride, groups=hidden_dim),
         # add bottleneck
         layers += nn.Sequential(
             nn.Conv2d(hidden_dim, out_channels, kernel_size=1, stride=1, bias=False),
