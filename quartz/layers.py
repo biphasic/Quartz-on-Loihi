@@ -109,7 +109,7 @@ class Dense(Layer):
         self.output_dims = weights.shape[0]
 
     def __repr__(self):
-        s = "{} features_in={}, features_out={}".format(self.name, self.weights.shape[0], self.weights.shape[1])
+        s = "{} features_in={}, features_out={}".format(self.name, self.weights.shape[1], self.weights.shape[0])
         if self.biases is not None:
             s += ', bias=True'
         if self.rectifying:
@@ -207,7 +207,7 @@ class Conv2D(Layer):
         self.rectifying = rectifying
             
     def __repr__(self):
-        s = "{} {}, {}, kernel_size={}".format(self.name, self.weights.shape[0], self.weights.shape[1], self.weights.shape[2:])
+        s = "{} {}, {}, kernel_size={}".format(self.name, self.weights.shape[1]*self.groups, self.weights.shape[0], self.weights.shape[2:])
         if self.padding != (0,) * len(self.padding):
             s += ', padding={}'.format(self.padding)
         if self.groups != 1:
