@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
+# Bottleneck architecture without residuals inspired by MobileNet v2 https://arxiv.org/pdf/1801.04381.pdf
 class MobileNet(nn.Module):
     def __init__(self, n_classes):
         super(MobileNet, self).__init__()        
@@ -20,10 +21,11 @@ class MobileNet(nn.Module):
     def forward(self, out):
         out = self.features(out)
         logits = self.classifier(out)
-        probs = F.softmax(logits, dim=1)
-        return logits#, probs
+        return logits
 
 
+# inspired by MobileNet v1 https://arxiv.org/abs/1704.04861v1 and 
+# https://github.com/intel-nrc-ecosystem/models/blob/master/nxsdk_modules_ncl/dnn/utils/train_pseudo_mobile_net.py
 class MobileNetV1(nn.Module):
     def __init__(self, n_classes):
         super(MobileNet, self).__init__()        
@@ -69,6 +71,7 @@ class Bottleneck(nn.Module):
         layers = []
         if expansion_factor != 1:
             layers += ConvBNReLU(in_channels, hidden_dim, kernel_size=1, stride=1)
+        # no BN for this layer because weights after folding would always explode
         layers += ConvReLU(hidden_dim, hidden_dim, kernel_size=3, stride=stride, groups=hidden_dim),
         # add bottleneck
         layers += nn.Sequential(
