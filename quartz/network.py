@@ -65,7 +65,7 @@ class Network:
             for block in layer.blocks:
                 if block.monitor: block.probe.t_max = self.t_max
 
-    def __call__(self, inputs, n_cores_per_layer=None, profiling=False, logging=False, partition='loihi', return_board=False):
+    def __call__(self, inputs, n_cores_per_layer=None, profiling=False, logging=False, partition='loihi'):
         np.set_printoptions(suppress=True)
         batch_size = inputs.shape[0] if len(inputs.shape) == 4 else 1
         # figure out presentation time for 1 sample and overall run time
@@ -82,7 +82,6 @@ class Network:
         self.set_probe_t_max()
         # create and connect compartments and add input spikes
         board = self.build_model(input_spike_list, n_cores_per_layer)
-        if return_board: return board
         # use reset snip in case of multiple samples
         if batch_size > 1: 
             board = self.add_snips(board)
@@ -116,6 +115,7 @@ class Network:
             # assign core layout based on no of compartments and no of unique connections
             self.check_layout()
         else:
+            assert len(n_cores_per_layer) == len(self.layers)
             self.assign_layout(n_cores_per_layer)
         self.distribute_neurons()
         # create loihi compartments
