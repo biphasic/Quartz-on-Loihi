@@ -164,10 +164,8 @@ class Network:
                 if self.logging: print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
     def assign_layout(self, layout):
-        if self.logging: print("Assigning core layout...")
-        layout[0] = 1 # input layer n_cores does not matter
-        for l, n_cores in enumerate(layout):
-            layer = self.layers[l]
+        layout[0] = 1 # input layer n_cores does not matter but cannot be zero
+        for n_cores, layer in zip(layout, self.layers):
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / n_cores)
             layer.n_cores = n_cores
@@ -191,9 +189,6 @@ class Network:
             core_id += 1
 
         self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
-#         if self.logging:
-#             print("Number of compartments on each core for 1 chip:")
-#             print(self.compartments_on_core.reshape(-1,8))
 
     def create_compartments(self):
         net = nx.NxNet()
@@ -301,7 +296,7 @@ class Network:
         board.start(partition=partition)
         if self.init_channel is not None:
             self.init_channel.write(1, [self.steps_per_image])
-            self.init_channel.write(1, [self.n_cores])
+            self.init_channel.write(1, [min(128, self.n_cores)])
         board.run(run_time)
         board.disconnect()
         if profiling:
@@ -309,10 +304,10 @@ class Network:
             print(self.power_stats)
 
     def __repr__(self):
+        network_data = [(layer.name, layer.n_output_compartments(), layer.n_bias_compartments(), layer.n_parameters(), layer.n_outgoing_connections()) for layer in self.layers]
         print("layer name   \t  n_comp n_bias  n_param    n_conn")
         print("---------------------------------------------------")
-        print('\n'.join(["{:11s}\t{:8d} {:8d} {:7d} {:9d}".format(layer.name, layer.n_output_compartments(), layer.n_bias_compartments(), layer.n_parameters(),
-                                                         layer.n_outgoing_connections()) for layer in self.layers]))
+        print('\n'.join(["{:11s}\t{:8d} {:8d} {:7d} {:9d}".format(*layer_data) for layer_data in network_data]))
         print("---------------------------------------------------")
-        return "{:11s}\t{:8d} {:8d} {:7d} {:9d}".format("total", self.n_output_compartments(), self.n_bias_compartments(), self.n_parameters(), self.n_outgoing_connections())
+        return "{:11s}\t{:8d} {:8d} {:7d} {:9d}".format("total", sum([data[1] for data in network_data]), sum([data[2] for data in network_data]), sum([data[3] for data in network_data]), sum([data[4] for data in network_data]))
 
