@@ -268,24 +268,31 @@ class Network:
     def add_snips(self, board):
         snip_dir = os.getcwd() + "/quartz/snips"
         
-        init_snip = board.createSnip(
-            name='init-reset',
-            includeDir=snip_dir,
-            cFilePath=snip_dir + "/init.c",
-            funcName='set_init_values',
-            guardName=None,
-            phase=Phase.EMBEDDED_INIT)
+        self.init_channels = []
+        n_chips = math.ceil(self.n_cores / 128)
+        
+        for chip_id in range(n_chips):
+            init_snip = board.createSnip(
+                name='init-reset',
+                includeDir=snip_dir,
+                cFilePath=snip_dir + "/init.c",
+                funcName='set_init_values',
+                guardName=None,
+                phase=Phase.EMBEDDED_INIT,
+                chipId=chip_id)
 
-        reset_snip = board.createSnip(
-            name="batch-reset",
-            includeDir=snip_dir,
-            cFilePath=snip_dir + "/reset.c",
-            funcName="reset",
-            guardName="doReset", 
-            phase=Phase.EMBEDDED_MGMT)
+            reset_snip = board.createSnip(
+                name="batch-reset",
+                includeDir=snip_dir,
+                cFilePath=snip_dir + "/reset.c",
+                funcName="reset",
+                guardName="doReset", 
+                phase=Phase.EMBEDDED_MGMT,
+                chipId=chip_id)
 
-        self.init_channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
-        self.init_channel.connect(None, init_snip)
+            channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
+            channel.connect(None, init_snip)
+            self.init_channels.append(channel)
         return board
     
     def run_on_loihi(self, board, run_time, profiling, partition):
@@ -294,9 +301,10 @@ class Network:
             pc2 = PerformanceProbeCondition(tStart=1, tEnd=run_time, bufferSize=2048, binSize=2)
             self.energy_probe = board.probe(ProbeParameter.ENERGY, pc)
         board.start(partition=partition)
-        if self.init_channel is not None:
-            self.init_channel.write(1, [self.steps_per_image])
-            self.init_channel.write(1, [min(128, self.n_cores)])
+        if hasattr(self, 'init_channels'):
+            for channel in self.init_channels:
+                channel.write(1, [self.steps_per_image])
+                channel.write(1, [min(128, self.n_cores)])
         board.run(run_time)
         board.disconnect()
         if profiling:

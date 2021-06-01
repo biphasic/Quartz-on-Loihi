@@ -4,21 +4,15 @@
 #include "reset.h"
 
 static int numNeuronsPerCore = 1024;
-static int NUM_Y_TILES = 5;
 static int logNumber = 0;
 
 int tImgStart = 0;
 int tImgEnd = 0;
 
 extern int resetInterval;
-extern int enableReset;
 extern int nCores;
-
-void logicalToPhysicalCoreId(int logicalId, CoreId *physicalId) {
-    physicalId->p = logicalId % 4;
-    physicalId->x = logicalId/(4*(NUM_Y_TILES-1));
-    physicalId->y = (logicalId - physicalId->x*4*(NUM_Y_TILES-1))/4 + 1;
-}
+extern int logInterval;
+extern CoreId core_map[128];
 
 int doReset(runState *RunState) {
     if(RunState->time_step % resetInterval == 0){
@@ -28,36 +22,30 @@ int doReset(runState *RunState) {
 }
 
 void reset(runState *RunState) {
-    NeuronCore *nc;
-    CoreId coreId;
+    NeuronCore* nc = NEURON_PTR(core_map[0]);
 
-//     int resetStart = clock();
-    
-    for(int i=0; i<nCores; i++) {
-        logicalToPhysicalCoreId(i, &coreId);
-        nc = NEURON_PTR(coreId);
-        nx_fast_init64(nc->cx_state, numNeuronsPerCore, 0);
-    }
-    
-    for(int i=0; i<nCores; i++) {
-        logicalToPhysicalCoreId(i, &coreId);
-        nc = NEURON_PTR(coreId);
-        nx_fast_init32(nc->dendrite_accum, 8192, 0);
-    }
+    CxState cxs = (CxState) {.U=0, .V=0};
+    nx_fast_init_multicore(nc->cx_state, 
+                           numNeuronsPerCore, 
+                           sizeof(CxState), 
+                           sizeof(CxState), 
+                           &cxs,
+                           &core_map[0],
+                           nCores);     
 
-//     int resetFinish = clock();
+    nx_fast_init_multicore(nc->dendrite_accum, 
+                           numNeuronsPerCore * 8192 / 1024, 
+                           sizeof(DendriteAccumEntry), 
+                           sizeof(DendriteAccumEntry), 
+                           0,
+                           &core_map[0],
+                           nCores);    
     
     logNumber += 1;
-    if (logNumber % 100 == 0){
-        LOG("QUARTZ: Done resetting cx_state and dendrite_accum. %d\n", RunState->time_step);
-
-//         LOG("QUARTZ: Reset duration = %dus\n", (resetFinish-resetStart)/1000);
-
+    if (logNumber % logInterval == 0){
+        printf("QUARTZ: Done resetting cx_state and dendrite_accum. %d\n", RunState->time_step);
         tImgEnd = clock();
-        LOG("QUARTZ: Runtime per img = %dms, Avg. runtime per step = %dus time_step %d\n", (tImgEnd-tImgStart)/1000, (tImgEnd-tImgStart)/resetInterval, RunState->time_step);
+        printf("QUARTZ: Runtime per img = %dms, Avg. runtime per step = %dus time_step %d\n", (tImgEnd-tImgStart)/1000, (tImgEnd-tImgStart)/resetInterval, RunState->time_step);
         tImgStart = tImgEnd;
-        logNumber = 0;
     }
-
-
 }

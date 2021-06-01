@@ -1,4 +1,3 @@
-#include "utils.h"
 #include "nxsdk.h"
 
 int doReset(runState *s);
