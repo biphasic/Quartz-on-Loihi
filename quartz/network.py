@@ -147,7 +147,7 @@ class Network:
             n_cores_cxs = len(layer.neurons()) / max_cx_per_core
             n_cores_synapses = sum([neuron.n_incoming_synapses for neuron in layer.neurons()]) / max_synapses_per_core
             n_cores_incoming_axons = sum([len(block.connections) for block in self.layers[i-1].blocks]) * self.layers[i-1].n_cores / max_incoming_axons_per_core
-            layer.n_cores = math.ceil(max(n_cores_cxs, n_cores_synapses))
+            layer.n_cores = math.ceil(max(n_cores_cxs, n_cores_synapses)) + 1 # for support and bias neurons
             layer.n_cx_per_core = math.ceil(len(layer.neurons()) / layer.n_cores)
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / layer.n_cores)
             if self.logging: 
@@ -164,9 +164,9 @@ class Network:
                 if self.logging: print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
     def assign_layout(self, layout):
-        layout[0] = 1 # input layer n_cores does not matter but cannot be zero
+        layout[0] = 2 # input layer n_cores does not matter but cannot be zero
         for n_cores, layer in zip(layout, self.layers):
-            layer.n_cx_per_core = math.ceil(len(layer.neurons()) / n_cores)
+            layer.n_cx_per_core = math.ceil(len(layer.neurons()) / (n_cores-1))
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / n_cores)
             layer.n_cores = n_cores
 
@@ -176,13 +176,17 @@ class Network:
         # distribute neurons equally across number of cores per layer
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
-            bias_core_id = core_id
             for neuron in layer.bias_neurons:
-                if self.biases_on_core[bias_core_id] + 1 > layer.n_bias_per_core: bias_core_id += 1
-                neuron.core_id = bias_core_id
-                self.compartments_on_core[bias_core_id] += 1
-                self.biases_on_core[bias_core_id] += 1
-            for neuron in layer.neurons_without_bias():
+                neuron.core_id = core_id
+                self.compartments_on_core[core_id] += 1
+            for neuron in layer.sync_neurons:
+                neuron.core_id = core_id
+                self.compartments_on_core[core_id] += 1
+            for neuron in layer.rectifier_neurons:
+                neuron.core_id = core_id
+                self.compartments_on_core[core_id] += 1
+            core_id += 1
+            for neuron in layer.output_neurons:
                 if self.compartments_on_core[core_id] + 1 > layer.n_cx_per_core: core_id += 1
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
@@ -271,28 +275,30 @@ class Network:
         self.init_channels = []
         n_chips = math.ceil(self.n_cores / 128)
         
-        for chip_id in range(n_chips):
-            init_snip = board.createSnip(
-                name='init-reset',
-                includeDir=snip_dir,
-                cFilePath=snip_dir + "/init.c",
-                funcName='set_init_values',
-                guardName=None,
-                phase=Phase.EMBEDDED_INIT,
-                chipId=chip_id)
+#         for chip_id in range(n_chips):
+        init_snip = board.createSnip(
+            name='init-reset',
+            includeDir=snip_dir,
+            cFilePath=snip_dir + "/init.c",
+            funcName='set_init_values',
+            guardName=None,
+            phase=Phase.EMBEDDED_INIT,
+#             chipId=chip_id
+        )
 
-            reset_snip = board.createSnip(
-                name="batch-reset",
-                includeDir=snip_dir,
-                cFilePath=snip_dir + "/reset.c",
-                funcName="reset",
-                guardName="doReset", 
-                phase=Phase.EMBEDDED_MGMT,
-                chipId=chip_id)
+        reset_snip = board.createSnip(
+            name="batch-reset",
+            includeDir=snip_dir,
+            cFilePath=snip_dir + "/reset.c",
+            funcName="reset",
+            guardName="doReset", 
+            phase=Phase.EMBEDDED_MGMT,
+#             chipId=chip_id
+        )
 
-            channel = board.createChannel(name=b'init_channel', elementType="int", numElements=1)
-            channel.connect(None, init_snip)
-            self.init_channels.append(channel)
+        channel = board.createChannel(name='init_channel', elementType="int", numElements=1)
+        channel.connect(None, init_snip)
+        self.init_channels.append(channel)
         return board
     
     def run_on_loihi(self, board, run_time, profiling, partition):
