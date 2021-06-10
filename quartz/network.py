@@ -274,31 +274,30 @@ class Network:
         
         self.init_channels = []
         n_chips = math.ceil(self.n_cores / 128)
-        
-#         for chip_id in range(n_chips):
-        init_snip = board.createSnip(
-            name='init-reset',
-            includeDir=snip_dir,
-            cFilePath=snip_dir + "/init.c",
-            funcName='set_init_values',
-            guardName=None,
-            phase=Phase.EMBEDDED_INIT,
-#             chipId=chip_id
-        )
 
-        reset_snip = board.createSnip(
-            name="batch-reset",
-            includeDir=snip_dir,
-            cFilePath=snip_dir + "/reset.c",
-            funcName="reset",
-            guardName="doReset", 
-            phase=Phase.EMBEDDED_MGMT,
-#             chipId=chip_id
-        )
+        for chip_id in range(n_chips):
+            init_snip = board.createSnip(
+                name='init-reset',
+                includeDir=snip_dir,
+                cFilePath=snip_dir + "/init.c",
+                funcName='set_init_values',
+                guardName=None,
+                phase=Phase.EMBEDDED_INIT,
+                chipId=chip_id
+            )
 
-        channel = board.createChannel(name='init_channel', elementType="int", numElements=1)
-        channel.connect(None, init_snip)
-        self.init_channels.append(channel)
+            reset_snip = board.createSnip(
+                name="batch-reset",
+                includeDir=snip_dir,
+                cFilePath=snip_dir + "/reset.c",
+                funcName="reset",
+                guardName="doReset", 
+                phase=Phase.EMBEDDED_MGMT,
+                chipId=chip_id
+            )
+            channel = board.createChannel(name='init_channel_'+str(chip_id), elementType="int", numElements=1)
+            self.init_channels.append(channel)
+            channel.connect(None, init_snip)
         return board
     
     def run_on_loihi(self, board, run_time, profiling, partition):
