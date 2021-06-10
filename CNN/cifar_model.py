@@ -28,7 +28,7 @@ class MobileNet(nn.Module):
 # https://github.com/intel-nrc-ecosystem/models/blob/master/nxsdk_modules_ncl/dnn/utils/train_pseudo_mobile_net.py
 class MobileNetV1(nn.Module):
     def __init__(self, n_classes):
-        super(MobileNet, self).__init__()        
+        super(MobileNetV1, self).__init__()        
         self.features = nn.Sequential(
             ConvBNReLU(in_channels=3, out_channels=32, kernel_size=3, stride=2),
             DepthwiseSeparableConv(in_channels=32, out_channels=64),
@@ -101,7 +101,7 @@ class ConvPool(nn.Sequential):
 class DepthwiseSeparableConv(nn.Sequential):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
         padding = (kernel_size - 1) // 2
-        super(depthwise_separable_conv, self).__init__(
+        super(DepthwiseSeparableConv, self).__init__(
             nn.Conv2d(in_channels, in_channels, kernel_size, stride, padding, groups=in_channels),
             nn.BatchNorm2d(in_channels),
             nn.ReLU(),
