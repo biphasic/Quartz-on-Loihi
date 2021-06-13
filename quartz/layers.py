@@ -291,7 +291,7 @@ class Conv2D(Layer):
                     for group_weight_index, input_channel in enumerate(range(g*n_groups_in,(g+1)*n_groups_in)):
                         receptive_field = input_neurons[patches[input_channel,i,:,:].ravel()]
                         mask = receptive_field != 0
-                        block_patch = Block(neurons=list(receptive_field[mask]))#, name=prev_layer.name+"patch-c{0:3.0f}-n{1:3.0f}:".format(input_channel, i))
+                        block_patch = Block(neurons=list(receptive_field[mask]), name="patch-block") # prev_layer.name+"patch-c{0:3.0f}-n{1:3.0f}:".format(input_channel, i))
                         prev_layer.blocks += [block_patch]
                         patch_weights = weights[output_channel,group_weight_index,:,:].ravel()
                         patch_weight_selection = patch_weights[mask]
@@ -376,7 +376,7 @@ class MaxPool2D(Layer):
             # stride patches
             patches = patches[::self.stride,::self.stride,:,:,:].reshape(-1, *self.kernel_size, patches.shape[-1]) 
             for i in range(int(np.product(self.output_dims[1:]))): # loop through all units in the output channel
-                block_patch = Block(neurons=list(input_neurons[patches[i,:,:,:].ravel()]))
+                block_patch = Block(neurons=list(input_neurons[patches[i,:,:,:].ravel()]), name="patch-block")
                 prev_layer.blocks += [block_patch]
                 block_patch.connect_to(self.output_neurons[output_channel*np.product(self.output_dims[1:])+i], 
                                        np.array([self.weight_e]*len(block_patch.neurons)).reshape(1, len(block_patch.neurons)))
