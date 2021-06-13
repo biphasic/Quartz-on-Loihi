@@ -164,21 +164,24 @@ class Network:
                 if self.logging: print("Updated n_cores for previous layer due to large number of outgoing axons: " + str(self.layers[i-1].n_cores))
 
     def assign_layout(self, layout):
-        layout[0] = 2 # input layer n_cores does not matter but cannot be zero
+        layout[0] = 10 # input layer n_cores does not matter but cannot be zero
+        n_cores_support_neurons = 1
+        n_cores_bias_neurons = 1
         for n_cores, layer in zip(layout, self.layers):
-            layer.n_cx_per_core = math.ceil(len(layer.neurons()) / (n_cores-1))
+            layer.n_cx_per_core = math.ceil(len(layer.neurons()) / (n_cores-n_cores_support_neurons-n_cores_bias_neurons))
             layer.n_bias_per_core = math.ceil(len(layer.bias_neurons) / n_cores)
             layer.n_cores = n_cores
 
     def distribute_neurons(self):
-        self.compartments_on_core = np.zeros((128*32))
-        self.biases_on_core = np.zeros((128*32))
+        self.compartments_on_core = np.zeros((128*32*4))
+        self.biases_on_core = np.zeros((128*32*4))
         # distribute neurons equally across number of cores per layer
         core_id = 0
         for i, layer in enumerate(self.layers[1:]):
             for neuron in layer.bias_neurons:
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
+            core_id += 1
             for neuron in layer.sync_neurons:
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
@@ -191,7 +194,6 @@ class Network:
                 neuron.core_id = core_id
                 self.compartments_on_core[core_id] += 1
             core_id += 1
-
         self.n_cores = sum([layer.n_cores for layer in self.layers[1:]])
 
     def create_compartments(self):
