@@ -6,12 +6,12 @@ from torch.nn import functional as F
 # Bottleneck architecture without residuals inspired by MobileNet v2 https://arxiv.org/pdf/1801.04381.pdf
 class MobileNet(nn.Module):
     def __init__(self, n_classes):
-        super(MobileNet, self).__init__()        
+        super(MobileNet, self).__init__()
         self.features = nn.Sequential(
             ConvBNReLU(in_channels=3, out_channels=32, kernel_size=3, stride=2),
-            Bottleneck(in_channels=32, out_channels=64, expansion_factor=4, stride=2),
-            Bottleneck(in_channels=64, out_channels=64, expansion_factor=4, stride=1),
-            Bottleneck(in_channels=64, out_channels=128, expansion_factor=4, stride=2),
+            Bottleneck(in_channels=32, out_channels=64, expansion_factor=2, stride=2, dropout=0.001),
+            Bottleneck(in_channels=64, out_channels=64, expansion_factor=2, stride=1, dropout=0.01),
+            Bottleneck(in_channels=64, out_channels=128, expansion_factor=2, stride=2, dropout=0.1),
         )
         self.classifier = nn.Sequential(
             ConvPool(in_channels=128, out_channels=160, conv_kernel_size=1, pool_kernel_size=4, stride=1),
@@ -49,34 +49,37 @@ class MobileNetV1(nn.Module):
 
 
 class ConvBNReLU(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1, dropout=1e-5):
         padding = (kernel_size - 1) // 2
         super(ConvBNReLU, self).__init__(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups, bias=False),
             nn.BatchNorm2d(out_channels, momentum=0.4),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.Dropout2d(dropout))
 
 class ConvReLU(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1, dropout=1e-5):
         padding = (kernel_size - 1) // 2
         super(ConvReLU, self).__init__(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.Dropout2d(dropout))
 
 class Bottleneck(nn.Module):
-    def __init__(self, in_channels, out_channels, expansion_factor, repeats=1, stride=1):
+    def __init__(self, in_channels, out_channels, expansion_factor, repeats=1, stride=1, dropout=1e-5):
         super(Bottleneck, self).__init__()
         hidden_dim = int(round(in_channels * expansion_factor))
 
         layers = []
         if expansion_factor != 1:
-            layers += ConvBNReLU(in_channels, hidden_dim, kernel_size=1, stride=1)
+            layers += ConvBNReLU(in_channels, hidden_dim, kernel_size=1, stride=1, dropout=dropout)
         # no BN for this layer because weights after folding would always explode
-        layers += ConvReLU(hidden_dim, hidden_dim, kernel_size=3, stride=stride, groups=hidden_dim),
+        layers += ConvReLU(hidden_dim, hidden_dim, kernel_size=3, stride=stride, groups=hidden_dim, dropout=dropout),
         # add bottleneck
         layers += nn.Sequential(
             nn.Conv2d(hidden_dim, out_channels, kernel_size=1, stride=1, bias=False),
             nn.BatchNorm2d(out_channels, momentum=0.4),
+            nn.Dropout2d(dropout),
         )
         self.bottleneck = nn.Sequential(*layers)
 
